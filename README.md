@@ -38,35 +38,35 @@ A simple example of use:
 #include "pmalloc.h"
 
 int main() {
-	printf("pmalloc: Basic Example\n\n");
+  printf("pmalloc: Basic Example\n\n");
 
-	pmalloc_t pmblock;
-	pmalloc_t *pm = &pmblock;
+  pmalloc_t pmblock;
+  pmalloc_t *pm = &pmblock;
 
-	// Initialise our pmalloc
-	pmalloc_init(pm);
+  // Initialise our pmalloc
+  pmalloc_init(pm);
 
-	// Make 64k of memory - in embedded systems, we'd actually give a static memory address and size.
-	char buffer[65536];
-	pmalloc_addblock(pm, &buffer, 65536);
+  // Make 64k of memory - in embedded systems, we'd actually give a static memory address and size.
+  char buffer[65536];
+  pmalloc_addblock(pm, &buffer, 65536);
 
-	uint32_t len[6] = { 150, 256, 512, 100, 1024, 65536 };
-	void* mem[6];
+  uint32_t len[6] = { 150, 256, 512, 100, 1024, 65536 };
+  void* mem[6];
 
-	// Allocate some memory - the last allocation should fail
-	for(uint32_t i = 0; i<6; i++) {
-		printf("Allocating %d bytes...\n", len[i]);
-		mem[i] = pmalloc_malloc(pm, len[i]);
-	}
-	if(mem[5] == NULL) printf("Last allocation of %d bytes failed as expected\n", len[5]); 
+  // Allocate some memory - the last allocation should fail
+  for(uint32_t i = 0; i<6; i++) {
+    printf("Allocating %d bytes...\n", len[i]);
+    mem[i] = pmalloc_malloc(pm, len[i]);
+  }
+  if(mem[5] == NULL) printf("Last allocation of %d bytes failed as expected\n", len[5]); 
 
-	// ...use the memory...
+  // ...use the memory...
 
-	printf("Deallocaing\n");
-	// Deallocate the memory
-	for(uint32_t i = 0; i<5; i++) pmalloc_free(pm, mem[i]);
-	
-	printf("Done\n");
+  printf("Deallocaing\n");
+  // Deallocate the memory
+  for(uint32_t i = 0; i<5; i++) pmalloc_free(pm, mem[i]);
+  
+  printf("Done\n");
 }
 ```
 
@@ -78,11 +78,11 @@ There are a number of further examples in the [examples][examples] directory.
 
 ```C
 typedef struct pmalloc {
-	pmalloc_ll_item_t *available;
-	pmalloc_ll_item_t *assigned;
-	uint32_t freemem;
-	uint32_t totalmem;
-	uint32_t totalnodes;
+  pmalloc_ll_item_t *available;
+  pmalloc_ll_item_t *assigned;
+  uint32_t freemem;
+  uint32_t totalmem;
+  uint32_t totalnodes;
 } pmalloc_t;
 ```
 
@@ -92,9 +92,9 @@ This represents the root of the allocation structure.
 
 ```C
 typedef struct pmalloc_item {
-	struct pmalloc_item *prev;									// The previous block in the chain
-	struct pmalloc_item *next;									// The next block in the chain
-	uint32_t size;													// This is the size of the block as reported to the user 
+  struct pmalloc_item *prev;                  // The previous block in the chain
+  struct pmalloc_item *next;                  // The next block in the chain
+  uint32_t size;                          // This is the size of the block as reported to the user 
 } pmalloc_item_t;
 ```
 
