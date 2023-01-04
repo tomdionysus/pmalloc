@@ -49,17 +49,10 @@ target_link_libraries(
 include(GoogleTest)
 gtest_discover_tests(pmalloc_test)
 
-add_executable(
-  pmalloc_example_suballocation
-  example/example_suballocation.c
-)
+add_executable(pmalloc_example_basic example/example_basic.c)
+target_include_directories(pmalloc_example_basic PUBLIC src)
+target_link_libraries(pmalloc_example_basic pmalloc)
 
-target_include_directories(
-  pmalloc_example_suballocation
-  PUBLIC src
-)
-
-target_link_libraries(
-  pmalloc_example_suballocation
-  pmalloc
-)
+add_executable(pmalloc_example_suballocation example/example_suballocation.c)
+target_include_directories(pmalloc_example_suballocation PUBLIC src)
+target_link_libraries(pmalloc_example_suballocation pmalloc)
