@@ -70,7 +70,7 @@ int main() {
 }
 ```
 
-There are a number of further examples in the [examples][examples] directory.
+There are a number of further examples in the [examples](examples) directory.
 
 ## Structures
 
