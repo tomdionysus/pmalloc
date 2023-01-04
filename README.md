@@ -59,50 +59,74 @@ A linked-list item representing an individual memory allocation.
 
 ## Functions
 
-### `void pmalloc_init(pmalloc_t *pm)`
+### pmalloc_init
+
+`void pmalloc_init(pmalloc_t *pm)`
 
 Initialise the specified `pmalloc_t` structure.
 
-### `void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)`
+### pmalloc_addblock
+
+`void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)`
 
 Add memory at `ptr` of byte size `size` to be available for allocation using `pmalloc_malloc` or `pmalloc_calloc`.
 
-### `void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)`
+### pmalloc_malloc
+
+`void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)`
 
 Allocate a block of memory of `size` bytes from the available space. Return a pointer to the block, or `NULL` if there isn't enough space.
 
-### `void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)`
+### pmalloc_calloc
+
+`void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)`
 
 Allocate `num` blocks of memory of `size` bytes from the available space and fill it with `0x00`. Return a pointer to the first block, or `NULL` if there isn't enough space.
 
-### `void pmalloc_free(pmalloc_t *pm, void *ptr)`
+### pmalloc_free
+
+`void pmalloc_free(pmalloc_t *pm, void *ptr)`
 
 Free the block of previously allocated memory pointed to by `ptr`.
 
-### `uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr)`
+### pmalloc_sizeof
+
+`uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr)`
 
 Get the size in bytes of the block previously allocated memory pointed to by `ptr`.
 
-### `uint32_t pmalloc_freemem(pmalloc_t *pm)`
+### pmalloc_freemem
+
+`uint32_t pmalloc_freemem(pmalloc_t *pm)`
 
 Return the currently available free memory in bytes.
 
-### `uint32_t pmalloc_totalmem(pmalloc_t *pm)`
+### pmalloc_totalmem
+
+`uint32_t pmalloc_totalmem(pmalloc_t *pm)`
 
 Return the total memory in bytes.
 
-### `uint32_t pmalloc_usedmem(pmalloc_t *pm)`
+### pmalloc_usedmem
+
+`uint32_t pmalloc_usedmem(pmalloc_t *pm)`
 
 Return the amount of used memory in bytes.
 
-### `uint32_t pmalloc_overheadmem(pmalloc_t *pm)`
+### pmalloc_overheadmem
+
+`uint32_t pmalloc_overheadmem(pmalloc_t *pm)`
 
 Return the current amount of memory consumed in overhead in bytes.
 
-### `void pmalloc_item_insert(pmalloc_item_t **root, void *ptr)`
+### pmalloc_item_insert
+
+`void pmalloc_item_insert(pmalloc_item_t **root, void *ptr)`
 
 *Internal:* Insert the memory block at `ptr` and prefixed by a `pmalloc_item` struct into the specified block item chain.
 
-### `void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)`
+### pmalloc_item_remove
+
+`void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)`
 
 *Internal:* Remove the memory block at `ptr` and prefixed by a `pmalloc_item` struct from the specified block item chain.
