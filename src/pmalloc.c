@@ -11,9 +11,6 @@
 // allocation.
 //
 
-#include <stdlib.h>
-#include <stdio.h>
-
 #include "pmalloc.h"
 
 // Local linked list definitions
@@ -33,7 +30,7 @@ uint32_t __freemem = 0;
 uint32_t __totalmem = 0;
 uint32_t __totalnodes = 0;
 
-void paddblock(void *ptr, uint32_t size)
+void pmalloc_addblock(void *ptr, uint32_t size)
 {
 	// Get the usable size of the block
 	((ll_item_t*)ptr)->size = size - sizeof(ll_item_t);
@@ -47,7 +44,7 @@ void paddblock(void *ptr, uint32_t size)
 	__totalnodes++;
 }
 
-void *pmalloc(uint32_t size)
+void *pmalloc_malloc(uint32_t size)
 {
 	// Find a suitable block
 	ll_item_t *current = __available;
@@ -83,15 +80,15 @@ void *pmalloc(uint32_t size)
 	return current + sizeof(ll_item_t);
 }
 
-void *pcalloc(uint32_t num, uint32_t size)
+void *pmalloc_calloc(uint32_t num, uint32_t size)
 {
-	char *mem = pmalloc(num * size);
+	char *mem = pmalloc_malloc(num * size);
 	if(mem==NULL) return NULL;
 	for(uint32_t i=0; i<size; i++) mem[i]=0;
 	return mem;
 }
 
-void pfree(void *ptr)
+void pmalloc_free(void *ptr)
 {
 	// Get the node of this memory
 	ll_item_t *node = (ll_item_t*)ptr - sizeof(ll_item_t);
@@ -117,7 +114,7 @@ void pfree(void *ptr)
 	}
 }
 
-uint32_t psizeof(void *ptr) {
+uint32_t pmalloc_sizeof(void *ptr) {
 	// Get the actual ll_item_t of the block
 	ll_item_t *node = (ll_item_t*)ptr - sizeof(ll_item_t);
 
@@ -187,23 +184,7 @@ void ll_insert_sorted(ll_item_t **root, void *ptr)
 	} 
 }
 
-uint32_t ptotalmem() { return __totalmem; }
-uint32_t pfreemem() { return __freemem; }
-uint32_t pusedmem() { return __totalmem - __freemem; }
-uint32_t poverheadmem() { return __totalnodes * sizeof(ll_item_t); }
-
-void pmalloc_dump() {
-	printf("Available (Free %d, Total %d):\n", pfreemem(), ptotalmem());
-	ll_item_t *current = __available;
-	while(current!=NULL) {
-		printf("Address: %02lx User: %02lx Size: %d Gap: Prev %ld, Next %ld\n",  (unsigned long)current,  (unsigned long)current+sizeof(ll_item_t), current->size, current->prev != NULL ? current - (current->prev+current->prev->size+sizeof(ll_item_t)) : 0, current->next != NULL ? current->next - (current+current->size+sizeof(ll_item_t)) : 0);
-		current = current->next;
-	}
-
-	printf("\nAssigned (Used %d, Overhead %d):\n", pusedmem(), poverheadmem());
-	current = __assigned;
-	while(current!=NULL) {
-		printf("Address: %02lx User: %02lx Size: %d Gap: Prev %ld, Next %ld\n",  (unsigned long)current, (unsigned long)current+sizeof(ll_item_t), current->size,  current->prev != NULL ? current - (current->prev+current->prev->size+sizeof(ll_item_t)) : 0, current->next != NULL ? current->next - (current+current->size+sizeof(ll_item_t)) : 0);
-		current = current->next;
-	}
-}
+uint32_t pmalloc_totalmem() { return __totalmem; }
+uint32_t pmalloc_freemem() { return __freemem; }
+uint32_t pmalloc_usedmem() { return __totalmem - __freemem; }
+uint32_t pmalloc_overheadmem() { return __totalnodes * sizeof(ll_item_t); }

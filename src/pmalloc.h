@@ -1,17 +1,18 @@
-#include <stdint.h>
-
 #ifndef PMALLOC
 #define PMALLOC
 
-void paddblock(void *ptr, uint32_t size);				// Add an area of memory available for allocation
-void *pmalloc(uint32_t size);							// Allocate size bytes of memory, returns NULL if out of memory
-void *pcalloc(uint32_t num, uint32_t size);				// Allocate num blocks each of size bytes, clear the memory first
-void pfree(void *ptr);									// Deallocate a block of previously allocated memory
+#include <stdint.h>
+#include <stdlib.h>
 
-uint32_t psizeof(void *ptr);							// Return the size of a block of previously allocated memory
+void pmalloc_addblock(void *ptr, uint32_t size);	// Add an area of memory available for allocation
+void *pmalloc_malloc(uint32_t size);				// Allocate size bytes of memory, returns NULL if out of memory
+void *pmalloc_calloc(uint32_t num, uint32_t size);	// Allocate num blocks each of size bytes, clear the memory first
+void pmalloc_free(void *ptr);						// Deallocate a block of previously allocated memory
 
-uint32_t pfreemem();									// Return the amount of free memory	
-uint32_t ptotalmem();									// Return the total amount of memory	
-void pmalloc_dump();									// Dump all available and allocated blocks to console
+uint32_t pmalloc_sizeof(void *ptr);					// Return the size of a block of previously allocated memory
+uint32_t pmalloc_freemem();							// Return the amount of free memory	
+uint32_t pmalloc_totalmem();						// Return the total amount of memory
+uint32_t pmalloc_usedmem();							// Return the amount of used memory
+uint32_t pmalloc_overheadmem();						// Return the current memory overhead
 
 #endif
