@@ -1,16 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(pmalloc)
 
-# GoogleTest requires at least C++14
+# GoogleTest 
 set(CMAKE_CXX_STANDARD 14)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
-
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-Os")
 
 include(FetchContent)
 
@@ -21,6 +17,17 @@ FetchContent_Declare(
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
+
+include_directories(
+  ${CMAKE_BINARY_DIR}/src
+  ${CMAKE_BINARY_DIR}/lib
+)
+
+# pmalloc
+
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-Os")
 
 add_library(
   pmalloc
@@ -42,7 +49,17 @@ target_link_libraries(
 include(GoogleTest)
 gtest_discover_tests(pmalloc_test)
 
-include_directories(
-  ${CMAKE_BINARY_DIR}/src
-  ${CMAKE_BINARY_DIR}/lib
+add_executable(
+  pmalloc_example_suballocation
+  example/example_suballocation.c
+)
+
+target_include_directories(
+  pmalloc_example_suballocation
+  PUBLIC src
+)
+
+target_link_libraries(
+  pmalloc_example_suballocation
+  pmalloc
 )

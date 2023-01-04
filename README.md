@@ -29,6 +29,37 @@ make
 ./pmalloc_test
 ```
 
+## Getting Started & Examples
+
+A simple example of use:
+
+```C
+int main() {
+	pmalloc_t pmblock;
+	pmalloc_t *pm = &pmblock;
+
+	// Initialise our pmalloc
+	pmalloc_init(pm);
+
+	// Make 64k of memory - in embedded systems, we'd actually give a static memory address and size.
+	char buffer[65536];
+	pmalloc_addblock(pm, &buffer, 65536);
+
+	uint32_t len[6] = { 150, 256, 512, 100, 1024, 65536 };
+	void* mem[6];
+
+	// Allocate some memory
+	for(uint32_t i = 0; i<6; i++) mem[i] = pmalloc_malloc(pm, len[i]);
+
+	// ...use the memory...
+
+	// Deallocate the memory
+	for(uint32_t i = 0; i<5; i++) pmalloc_free(pm, mem[i]);
+}
+```
+
+There are a number of further examples in the [examples][examples] directory.
+
 ## Structures
 
 ### pmalloc_t
