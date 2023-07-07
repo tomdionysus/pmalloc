@@ -1,9 +1,12 @@
 version: 2.1
 jobs:
   build:
-    working_directory: /app
     docker:
-      - image: circleci/gcc:latest
+      - image: ubuntu:latest
+
+    steps:
+      - checkout
+
 
     steps:
       - checkout
@@ -11,7 +14,7 @@ jobs:
       # Install dependencies
       - run:
           name: Install CMake
-          command: sudo apt-get update && sudo apt-get install -y cmake
+          command: sudo apt-get update && sudo apt-get install -y gcc cmake
 
       # Build the project
       - run:
@@ -28,3 +31,5 @@ jobs:
           command: |
             cd build
             ctest --output-on-failure
+
+
