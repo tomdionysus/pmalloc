@@ -38,7 +38,7 @@ int main() {
 	char *ptrs[10];
 
 	for(uint8_t i=0; i<10; i++) {
-		uint8_t len = strlen(strs[i]);
+		uint8_t len = strlen(strs[i])+1;
 		printf("Allocating %d bytes for '%s', ", len, strs[i]);
 		ptrs[i] = (char*)pmalloc_malloc(pm, len); 
 		printf("Copying, ");
