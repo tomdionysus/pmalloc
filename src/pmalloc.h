@@ -2,7 +2,7 @@
 #define PMALLOC
 
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
 typedef struct pmalloc_item {
 	struct pmalloc_item *prev;	// The previous block in the chain

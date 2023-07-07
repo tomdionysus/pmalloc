@@ -2,9 +2,9 @@
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/tomdionysus/pmalloc/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/tomdionysus/pmalloc/tree/master) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
-A minimal C library to manage memory using a familiar malloc/free pattern in embedded systems, or to manage sub-allocation within an area of memory given by the OS.
+A extremely minimal C library (4kbytes) to manage memory using a familiar malloc/free pattern in embedded systems, or to manage sub-allocation within an area of memory given by the OS.
 
-**BETA CODE: Do not use in production.**
+**pmalloc is BETA: Use at your own risk.**
 
 ## Building
 
@@ -17,7 +17,7 @@ cmake ..
 make
 ```
 
-You'll find the `libpmalloc.a` in the `build/lib` folder. 
+You'll find `libpmalloc.a` in the `build/lib` folder. 
 
 ## Testing
 
@@ -175,3 +175,7 @@ Return the current amount of memory consumed in overhead in bytes.
 `void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)`
 
 *Internal:* Remove the memory block at `ptr` and prefixed by a `pmalloc_item` struct from the specified block item chain.
+
+## Caveats
+
+pmalloc focuses on extreme minimalism, and does not include hardening or safety in code. For example, calling `pmalloc_free` with a block that was not previously allocated will lead to undefined behaviour.
