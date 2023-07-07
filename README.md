@@ -4,6 +4,8 @@
 
 A minimal C library to manage memory using a familiar malloc/free pattern in embedded systems, or to manage sub-allocation within an area of memory given by the OS.
 
+**BETA CODE: Do not use in production.**
+
 ## Building
 
 pmalloc uses [CMake](https://cmake.org/) so building is trivial:

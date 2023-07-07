@@ -14,10 +14,14 @@
 #include "pmalloc.h"
 
 #ifdef DEBUG
-#include <stdio.h>
+	#include <stdio.h>
 #endif
 
 void pmalloc_init(pmalloc_t *pm) {
+	#ifdef DEBUG
+		printf("pmalloc: DEBUG Enabled\n");
+	#endif
+
 	pm->available = NULL;
 	pm->assigned = NULL;
 	pm->freemem = 0;
@@ -59,6 +63,8 @@ void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 		// Add a free block that's the remainder size
 		pmalloc_item_t *newfree = (pmalloc_item_t*)((char*)current + sizeof(pmalloc_item_t) + size);
 		newfree->size = current->size - sizeof(pmalloc_item_t) - size;
+		newfree->next = current->next;
+		current->next = NULL;
 		
 		// Change pm->assigned size
 		current->size = size;
@@ -67,6 +73,9 @@ void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 		// We've lost a bit of overhead making the new node
 		pm->freemem -= sizeof(pmalloc_item_t);
 		pm->totalnodes++;
+
+		// Merge around newfree
+		pmalloc_merge(pm, newfree);
 	}
 
 	// Reduce the amount of free memory
@@ -97,11 +106,17 @@ void pmalloc_free(pmalloc_t *pm, void *ptr)
 	// Add to pm->available
 	pmalloc_item_insert(&pm->available, node);
 
-	// Scan backward for contiguious blocks
-	while(node->prev!=NULL && node == node->prev + sizeof(pmalloc_item_t) + node->prev->size) node = node->prev;
+	// Merge around current
+	pmalloc_merge(pm, node);
+}
+
+void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node) {
+	// Scan backward for contiguous blocks
+	while (node->prev != NULL && (char*)node == (char*)node->prev + sizeof(pmalloc_item_t) + node->prev->size)
+		node = node->prev;
 
 	// Scan forward and merge free blocks
-	while(node->next == node + sizeof(pmalloc_item_t) + node->size) {
+	while (node->next == (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + node->size)) {
 		uint32_t nodesize = node->next->size + sizeof(pmalloc_item_t);
 		pm->freemem += sizeof(pmalloc_item_t);
 		pmalloc_item_remove(&pm->available, node->next);
@@ -190,13 +205,13 @@ void pmalloc_dump_stats(pmalloc_t *pm) {
 	printf("---------------------\n");
 	printf(" - freemem: %d\n", pm->freemem);
 	printf(" - totalmem: %d\n", pm->totalmem);
-	printf(" - totalnodes: %d\n", pm->totalnodes);
+	printf(" - totalnodes: %d (sizeof %d)\n", pm->totalnodes, (int)sizeof(pmalloc_item_t));
 	printf(" - assigned:\n");
-	for(pmalloc_item_t* current = pm->assigned; current !=NULL; current=current->next) {
+	for(pmalloc_item_t* current = pm->assigned; current != NULL; current=current->next) {
 		printf("  - size: %d\n", current->size);
 	} 
 	printf(" - available:\n");
-	for(pmalloc_item_t* current = pm->available; current !=NULL; current=current->next) {
+	for(pmalloc_item_t* current = pm->available; current != NULL; current=current->next) {
 		printf("  - size: %d\n", current->size);
 	} 
 
