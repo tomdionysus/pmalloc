@@ -31,7 +31,7 @@ make
 ./pmalloc_test
 ```
 
-## Getting Started & Examples
+## Getting Started
 
 A simple example of use:
 
