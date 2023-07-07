@@ -33,5 +33,9 @@ uint32_t pmalloc_overheadmem(pmalloc_t *pm);							// Return the current memory 
 void pmalloc_item_insert(pmalloc_item_t **root, void *ptr);				// Insert an item into the linked list
 void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node);	// Remove an item from a linked list
 
+#ifdef DEBUG
+void pmalloc_dump_stats(pmalloc_t *pm);									// Debug Function
+#endif
+
 #endif
 

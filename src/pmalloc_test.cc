@@ -6,7 +6,7 @@ extern "C" {
 }
 
 // Instantiate, check 
-TEST(PMAllocTest, NewDestroy) {
+TEST(PMAllocTest, AllocSizeFree) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -27,4 +27,30 @@ TEST(PMAllocTest, NewDestroy) {
   }
 
   for(uint32_t i = 0; i<5; i++) pmalloc_free(pm, mem[i]);
+}
+
+// Test freeing block
+TEST(PMAllocTest, FreeBlock) {
+  pmalloc_t pmblock;
+  pmalloc_t *pm = &pmblock;
+
+  pmalloc_init(pm);
+
+  char buffer[65536];
+  pmalloc_addblock(pm, &buffer, 65535);
+
+  uint32_t len[4] = { 1024, 2048 };
+  void* mem[4];
+
+  for(uint32_t i = 0; i<4; i++) mem[i] = pmalloc_malloc(pm, len[i]);
+
+  #ifdef DEBUG
+  pmalloc_dump_stats(pm);
+  #endif
+
+  EXPECT_EQ(pmalloc_usedmem(pm), 1024+2048);
+  EXPECT_EQ(pmalloc_overheadmem(pm), sizeof(pmalloc_item)*2);
+  EXPECT_EQ(pmalloc_freemem(pm), 65536-1024-2048-sizeof(pmalloc_item)*4);
+
+  for(uint32_t i = 0; i<2; i++) pmalloc_free(pm, mem[i]);
 }

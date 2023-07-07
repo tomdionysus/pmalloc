@@ -29,6 +29,11 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-Os")
 
+option(DEBUG "Enable debug mode" OFF)
+if(DEBUG)
+    add_compile_definitions(DEBUG)
+endif()
+
 add_library(
   pmalloc
   src/pmalloc.c

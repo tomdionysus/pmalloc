@@ -13,6 +13,10 @@
 
 #include "pmalloc.h"
 
+#ifdef DEBUG
+#include <stdio.h>
+#endif
+
 void pmalloc_init(pmalloc_t *pm) {
 	pm->available = NULL;
 	pm->assigned = NULL;
@@ -47,14 +51,15 @@ void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 	// Remove it from pm->available
 	pmalloc_item_remove(&pm->available, current);
 
-	// Resize and add to pm->assigned
+	// Add to pm->assigned
 	pmalloc_item_insert(&pm->assigned, current);
 
 	// If it's not the exact size..
 	if(current->size != size) {
 		// Add a free block that's the remainder size
-		pmalloc_item_t *newfree = current + sizeof(pmalloc_item_t) + size;
+		pmalloc_item_t *newfree = (pmalloc_item_t*)((char*)current + sizeof(pmalloc_item_t) + size);
 		newfree->size = current->size - sizeof(pmalloc_item_t) - size;
+		
 		// Change pm->assigned size
 		current->size = size;
 		pmalloc_item_insert(&pm->available, newfree);
@@ -179,3 +184,22 @@ void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)
 	node->next = NULL;
 	node->prev = NULL;
 }
+
+#ifdef DEBUG
+void pmalloc_dump_stats(pmalloc_t *pm) {
+	printf("---------------------\n");
+	printf(" - freemem: %d\n", pm->freemem);
+	printf(" - totalmem: %d\n", pm->totalmem);
+	printf(" - totalnodes: %d\n", pm->totalnodes);
+	printf(" - assigned:\n");
+	for(pmalloc_item_t* current = pm->assigned; current !=NULL; current=current->next) {
+		printf("  - size: %d\n", current->size);
+	} 
+	printf(" - available:\n");
+	for(pmalloc_item_t* current = pm->available; current !=NULL; current=current->next) {
+		printf("  - size: %d\n", current->size);
+	} 
+
+	printf("---------------------\n");
+}
+#endif
