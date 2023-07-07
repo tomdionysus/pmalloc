@@ -82,7 +82,7 @@ void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 	pm->freemem -= current->size;
 
 	// Return the user memory
-	return current + sizeof(pmalloc_item_t);
+	return ((char*)current) + sizeof(pmalloc_item_t);
 }
 
 void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
@@ -99,7 +99,7 @@ void pmalloc_free(pmalloc_t *pm, void *ptr)
 	if(ptr == NULL) return;
 
 	// Get the node of this memory
-	pmalloc_item_t *node = (pmalloc_item_t*)ptr - sizeof(pmalloc_item_t);
+	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
 
 	// Remove it from pm->assigned
 	pmalloc_item_remove(&pm->assigned, node);
@@ -130,7 +130,7 @@ void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node) {
 
 uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr) {
 	// Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)ptr - sizeof(pmalloc_item_t);
+	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
 
 	// Return its size
 	return node->size;
@@ -211,11 +211,11 @@ void pmalloc_dump_stats(pmalloc_t *pm) {
 	printf(" - totalnodes: %d (sizeof %d)\n", pm->totalnodes, (int)sizeof(pmalloc_item_t));
 	printf(" - assigned:\n");
 	for(pmalloc_item_t* current = pm->assigned; current != NULL; current=current->next) {
-		printf("  - size: %d\n", current->size);
+		printf("  - (%016llx) %016llx -> %016llx - size: %lld (%ld sys, %d usr)\n", (unsigned long long)(char*)current, (unsigned long long)(char*)current + sizeof(pmalloc_item_t), (unsigned long long)(char*)current + current->size + sizeof(pmalloc_item_t), (unsigned long long)(current->size + sizeof(pmalloc_item_t)), sizeof(pmalloc_item_t), current->size);
 	} 
 	printf(" - available:\n");
 	for(pmalloc_item_t* current = pm->available; current != NULL; current=current->next) {
-		printf("  - size: %d\n", current->size);
+		printf("  - (%016llx) %016llx -> %016llx - size: %lld (%ld sys, %d usr)\n", (unsigned long long)(char*)current, (unsigned long long)(char*)current + sizeof(pmalloc_item_t), (unsigned long long)(char*)current + current->size + sizeof(pmalloc_item_t), (unsigned long long)(current->size + sizeof(pmalloc_item_t)), sizeof(pmalloc_item_t), current->size);
 	} 
 
 	printf("---------------------\n");

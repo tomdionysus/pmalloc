@@ -31,6 +31,18 @@ make
 ./pmalloc_test
 ```
 
+## Debug Build / Test
+
+pmalloc will dump extra debug information in testing (and enable the `pmalloc_dump_stats` function) if built in debug mode:
+
+```bash
+mkdir build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Debug .. 
+make
+./pmalloc_test
+```
+
 ## Getting Started
 
 A simple example of use:
@@ -169,6 +181,12 @@ Return the amount of used memory in bytes.
 
 Return the current amount of memory consumed in overhead in bytes.
 
+### pmalloc_merge
+
+`void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node)`
+
+Merge available nodes immediately before and after the given node, by scanning backward for consecutive nodes, then scanning forward to merge all consecutive nodes from that address.
+
 ### pmalloc_item_insert
 
 `void pmalloc_item_insert(pmalloc_item_t **root, void *ptr)`
@@ -180,6 +198,12 @@ Return the current amount of memory consumed in overhead in bytes.
 `void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)`
 
 *Internal:* Remove the memory block at `ptr` and prefixed by a `pmalloc_item` struct from the specified block item chain.
+
+### pmalloc_dump_stats (Debug build only)
+
+`void pmalloc_dump_stats(pmalloc_t *pm)`
+
+Dump the bookkeeping info and available and assigned chains for the given pmalloc_t.
 
 ## Caveats
 

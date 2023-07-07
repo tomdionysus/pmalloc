@@ -23,7 +23,12 @@ TEST(PMAllocTest, AllocSizeFree) {
   uint32_t len[6] = { 150, 256, 512, 100, 1024, 65536 };
   void* mem[6];
 
-  for(uint32_t i = 0; i<6; i++) mem[i] = pmalloc_malloc(pm, len[i]);
+  for(uint32_t i = 0; i<6; i++) {
+    mem[i] = pmalloc_malloc(pm, len[i]);
+    #ifdef DEBUG
+      printf("mem[%d] = %016llx\n", i, (unsigned long long)(char*)mem[i]);
+    #endif
+  }
 
   #ifdef DEBUG
     printf("AllocSizeFree: Allocated:\n");
@@ -34,6 +39,7 @@ TEST(PMAllocTest, AllocSizeFree) {
 
   for(uint8_t i = 0; i<5; i++) {
     EXPECT_EQ(pmalloc_sizeof(pm, mem[i]), len[i]) << "pmalloc_sizeof incorrectly reports size for block";
+
   }
 
   // Free All
@@ -61,6 +67,9 @@ TEST(PMAllocTest, FragmentationTest) {
   // Alloc the memory
   for(uint32_t i = 0; i<8; i++) {
     EXPECT_NE(mem[i] = pmalloc_malloc(pm, len[i]), (void*)NULL) << "pmalloc_malloc should pass";
+    #ifdef DEBUG
+      printf("mem[%d] = %016llx\n", i, (unsigned long long)(char*)mem[i]);
+    #endif
   }
 
   #ifdef DEBUG

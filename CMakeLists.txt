@@ -25,16 +25,13 @@ include_directories(
 
 # pmalloc
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra --coverage -g")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-Os")
-set(CMAKE_EXE_LINKER_FLAGS "--coverage")
-set(CMAKE_SHARED_LINKER_FLAGS "--coverage")
 
 # Debug Mode
-option(DEBUG "Enable debug mode" OFF)
-if(DEBUG)
-    add_compile_definitions(DEBUG)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_definitions(DEBUG)
 endif()
 
 add_library(
