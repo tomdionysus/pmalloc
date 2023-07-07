@@ -72,7 +72,12 @@ int main() {
 }
 ```
 
+## Examples
+
 There are a number of further examples in the [example](example) directory.
+
+* [Basic Example](example/example_basic.c) 
+* [Suballocation Example](example/example_suballocation.c) 
 
 ## Structures
 
