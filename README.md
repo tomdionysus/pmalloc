@@ -184,3 +184,8 @@ Return the current amount of memory consumed in overhead in bytes.
 ## Caveats
 
 pmalloc focuses on extreme minimalism, and does not include hardening or safety in code. For example, calling `pmalloc_free` with a block that was not previously allocated will lead to undefined behaviour.
+
+## Contributing
+
+PRs and comments welcome. Please see the [Code Of Conduct](CODE_OF_CONDUCT.md) for community guidelines.
+
