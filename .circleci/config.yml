@@ -10,7 +10,7 @@ jobs:
       # Install dependencies
       - run:
           name: Install CMake
-          command: sudo apt-get update && sudo apt-get install -y gcc cmake
+          command: apt-get update && apt-get install -y gcc cmake
 
       # Build the project
       - run:
