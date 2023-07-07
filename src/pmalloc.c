@@ -95,6 +95,9 @@ void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
 
 void pmalloc_free(pmalloc_t *pm, void *ptr)
 {
+	// Match stdlib free() NULL interface
+	if(ptr == NULL) return;
+
 	// Get the node of this memory
 	pmalloc_item_t *node = (pmalloc_item_t*)ptr - sizeof(pmalloc_item_t);
 
