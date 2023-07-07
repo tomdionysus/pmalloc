@@ -25,10 +25,13 @@ include_directories(
 
 # pmalloc
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra --coverage -g")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-Os")
+set(CMAKE_EXE_LINKER_FLAGS "--coverage")
+set(CMAKE_SHARED_LINKER_FLAGS "--coverage")
 
+# Debug Mode
 option(DEBUG "Enable debug mode" OFF)
 if(DEBUG)
     add_compile_definitions(DEBUG)
@@ -39,21 +42,6 @@ add_library(
   src/pmalloc.c
 )
 
-enable_testing()
-
-add_executable(
-  pmalloc_test
-  src/pmalloc_test.cc
-)
-target_link_libraries(
-  pmalloc_test
-  GTest::gtest_main
-  pmalloc
-)
-
-include(GoogleTest)
-gtest_discover_tests(pmalloc_test)
-
 add_executable(pmalloc_example_basic example/example_basic.c)
 target_include_directories(pmalloc_example_basic PUBLIC src)
 target_link_libraries(pmalloc_example_basic pmalloc)
@@ -61,3 +49,20 @@ target_link_libraries(pmalloc_example_basic pmalloc)
 add_executable(pmalloc_example_suballocation example/example_suballocation.c)
 target_include_directories(pmalloc_example_suballocation PUBLIC src)
 target_link_libraries(pmalloc_example_suballocation pmalloc)
+
+enable_testing()
+
+add_executable(
+  pmalloc_test
+  src/pmalloc_test.cc
+  src/pmalloc.c
+)
+
+target_link_libraries(
+  pmalloc_test
+  GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(pmalloc_test)
+
