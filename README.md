@@ -1,6 +1,6 @@
 # pmalloc
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/tomdionysus/pmalloc/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/tomdionysus/pmalloc/tree/master) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
 A minimal C library to manage memory using a familiar malloc/free pattern in embedded systems, or to manage sub-allocation within an area of memory given by the OS.
 
