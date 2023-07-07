@@ -93,6 +93,59 @@ void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
 	return mem;
 }
 
+void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
+{
+    // Match stdlib realloc() NULL interface
+    if (ptr == NULL) return pmalloc_malloc(pm, requestedSize);
+
+    // Get the actual pmalloc_item_t of the block
+	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+
+    // If the requested size is equal to the current size, return the original pointer
+    if (node->size == requestedSize) return ptr;
+
+    // If the requested size is smaller:
+    if (requestedSize < node->size) {
+     	// If the difference is less than twice sizeof(pmalloc_item_t), it's not worth doing anything, return the original pointer
+     	if(node->size - requestedSize < sizeof(pmalloc_item_t)*2) return ptr;
+
+     	// Otherwise, create a free block for the extra space, truncate the block at the new size, and merge around it
+     	pmalloc_item_t *newFree = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + requestedSize);
+     	newFree->size = (node->size - requestedSize) - sizeof(pmalloc_item_t);
+     	pmalloc_item_insert(&pm->available, newFree);
+
+     	// Set the new node size
+     	node->size = requestedSize;
+
+     	// Update free memory and node count
+     	pm->freemem += (node->size - requestedSize) - sizeof(pmalloc_item_t);
+     	pm->totalnodes++;
+
+     	// Merge around the new free block
+     	pmalloc_merge(pm, newFree);
+
+     	// Return original pointer
+     	return ptr;
+    }
+
+    // TODO: Expand the block if possible
+
+    // Allocate a new block with the requested size
+    void *newPtr = pmalloc_malloc(pm, requestedSize);
+
+    // Copy the data from the original block to the new block
+    if (newPtr != NULL)
+    {
+        // Copy the data using memcpy
+        for(uint32_t i = 0; i<node->size; i++) *((char*)newPtr + i) = *((char*)ptr + i);
+
+        // Free the original block
+        pmalloc_free(pm, ptr);
+    }
+
+    return newPtr;
+}
+
 void pmalloc_free(pmalloc_t *pm, void *ptr)
 {
 	// Match stdlib free() NULL interface

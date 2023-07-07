@@ -145,6 +145,14 @@ Allocate a block of memory of `size` bytes from the available space. Return a po
 
 Allocate `num` blocks of memory of `size` bytes from the available space and fill it with `0x00`. Return a pointer to the first block, or `NULL` if there isn't enough space.
 
+### pmalloc_realloc
+
+`void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t size)`
+
+Reallocate the block of previously allocated memory pointed to by `ptr` to a new size and return the new block pointer.
+Note: If the block cannot be reallocated, `pmalloc_realloc` will return NULL without freeing the existing block.
+Note: If the block must be relocated, `pmalloc_realloc` will copy the existing memory in the block and return the new pointer - this may be expensive depending on the length of the block.
+
 ### pmalloc_free
 
 `void pmalloc_free(pmalloc_t *pm, void *ptr)`

@@ -100,3 +100,72 @@ TEST(PMAllocTest, FragmentationTest) {
     pmalloc_dump_stats(pm);
   #endif
 }
+
+// Test realloc
+TEST(PMAllocTest, ReallocTest) {
+  pmalloc_t pmblock;
+  pmalloc_t *pm = &pmblock;
+
+  pmalloc_init(pm);
+
+  char buffer[65536];
+  pmalloc_addblock(pm, &buffer, 65536);
+
+  #ifdef DEBUG
+    printf("ReallocTest: Initial:\n");
+    pmalloc_dump_stats(pm);
+  #endif
+
+  uint32_t len[3] = { 100, 200, 300 };
+  void* mem[3];
+
+  // Allocate memory blocks
+  for (int i = 0; i < 3; ++i) {
+    mem[i] = pmalloc_malloc(pm, len[i]);
+    #ifdef DEBUG
+      printf("mem[%d] = %016llx\n", i, (unsigned long long)(char*)mem[i]);
+    #endif
+  }
+
+  #ifdef DEBUG
+    printf("ReallocTest: Allocated:\n");
+    pmalloc_dump_stats(pm);
+  #endif
+
+  // Reallocate the first block with a larger size
+  uint32_t newSize = 250;
+  mem[0] = pmalloc_realloc(pm, mem[0], newSize);
+
+  #ifdef DEBUG
+    printf("Realloc:\nmem[0] = %016llx\n", (unsigned long long)(char*)mem[0]);
+  #endif
+
+  #ifdef DEBUG
+    printf("ReallocTest: After reallocating mem[0] to size %u:\n", newSize);
+    pmalloc_dump_stats(pm);
+  #endif
+
+  EXPECT_EQ(pmalloc_sizeof(pm, mem[0]), newSize) << "pmalloc_sizeof incorrectly reports size for reallocated block";
+
+  // Reallocate the second block with a smaller size
+  newSize = 150;
+  mem[1] = pmalloc_realloc(pm, mem[1], newSize);
+
+  #ifdef DEBUG
+    printf("ReallocTest: After reallocating mem[1] to size %u:\n", newSize);
+    pmalloc_dump_stats(pm);
+  #endif
+
+  EXPECT_EQ(pmalloc_sizeof(pm, mem[1]), newSize) << "pmalloc_sizeof incorrectly reports size for reallocated block";
+
+  // Reallocate the third block with the same size
+  newSize = len[2];
+  mem[2] = pmalloc_realloc(pm, mem[2], newSize);
+
+  #ifdef DEBUG
+    printf("ReallocTest: After reallocating mem[2] to size %u:\n", newSize);
+    pmalloc_dump_stats(pm);
+  #endif
+
+  EXPECT_EQ(pmalloc_sizeof(pm, mem[2]), newSize) << "pmalloc_sizeof incorrectly reports size for reallocated block";
+}

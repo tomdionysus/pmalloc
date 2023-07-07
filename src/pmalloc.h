@@ -22,6 +22,7 @@ void pmalloc_init(pmalloc_t *pm);
 void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size);         // Add an area of memory available for allocation
 void *pmalloc_malloc(pmalloc_t *pm, uint32_t size);                     // Allocate size bytes of memory, returns NULL if out of memory
 void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size);       // Allocate num blocks each of size bytes, clear the memory first
+void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t size);         // Reallocate the existing block ptr to a new size and return the new block
 void pmalloc_free(pmalloc_t *pm, void *ptr);                            // Deallocate a block of previously allocated memory
 
 uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr);                      // Return the size of a block of previously allocated memory
