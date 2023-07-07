@@ -7,10 +7,6 @@ jobs:
     steps:
       - checkout
 
-
-    steps:
-      - checkout
-
       # Install dependencies
       - run:
           name: Install CMake
