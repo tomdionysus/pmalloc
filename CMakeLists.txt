@@ -52,12 +52,12 @@ enable_testing()
 add_executable(
   pmalloc_test
   src/pmalloc_test.cc
-  src/pmalloc.c
 )
 
 target_link_libraries(
   pmalloc_test
   GTest::gtest_main
+  pmalloc
 )
 
 include(GoogleTest)
