@@ -25,9 +25,6 @@ TEST(PMAllocTest, AllocSizeFree) {
 
   for(uint32_t i = 0; i<6; i++) {
     mem[i] = pmalloc_malloc(pm, len[i]);
-    #ifdef DEBUG
-      printf("mem[%d] = %016llx\n", i, (unsigned long long)(char*)mem[i]);
-    #endif
   }
 
   #ifdef DEBUG
@@ -67,9 +64,6 @@ TEST(PMAllocTest, FragmentationTest) {
   // Alloc the memory
   for(uint32_t i = 0; i<8; i++) {
     EXPECT_NE(mem[i] = pmalloc_malloc(pm, len[i]), (void*)NULL) << "pmalloc_malloc should pass";
-    #ifdef DEBUG
-      printf("mem[%d] = %016llx\n", i, (unsigned long long)(char*)mem[i]);
-    #endif
   }
 
   #ifdef DEBUG
@@ -102,7 +96,7 @@ TEST(PMAllocTest, FragmentationTest) {
 }
 
 // Test realloc
-TEST(PMAllocTest, ReallocTest1) {
+TEST(PMAllocTest, ReallocTestMiddleChainLargetNoSpaceAfter) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -123,7 +117,7 @@ TEST(PMAllocTest, ReallocTest1) {
   }
 
   #ifdef DEBUG
-    printf("ReallocTest1: Allocated:\n");
+    printf("ReallocTestMiddleChainLargetNoSpaceAfter: Allocated:\n");
     pmalloc_dump_stats(pm);
   #endif
 
@@ -136,7 +130,7 @@ TEST(PMAllocTest, ReallocTest1) {
   #endif
 
   #ifdef DEBUG
-    printf("ReallocTest1: After reallocating mem[0] to size %u:\n", newSize);
+    printf("ReallocTestMiddleChainLargetNoSpaceAfter: After reallocating mem[0] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
@@ -144,7 +138,7 @@ TEST(PMAllocTest, ReallocTest1) {
 }
 
 // Reallocate a block in the middle of the chain with a smaller size
-TEST(PMAllocTest, ReallocTest2) {
+TEST(PMAllocTest, ReallocTestMiddleChainToSmallerSize) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -165,7 +159,7 @@ TEST(PMAllocTest, ReallocTest2) {
   }
 
   #ifdef DEBUG
-    printf("ReallocTest2: Allocated:\n");
+    printf("ReallocTestMiddleChainToSmallerSize: Allocated:\n");
     pmalloc_dump_stats(pm);
   #endif
 
@@ -174,7 +168,7 @@ TEST(PMAllocTest, ReallocTest2) {
   EXPECT_NE(mem[1], (void*)NULL) << "pmalloc_realloc should not fail reallocating a smaller block";
 
   #ifdef DEBUG
-    printf("ReallocTest2: After reallocating mem[1] to size %u:\n", newSize);
+    printf("ReallocTestMiddleChainToSmallerSize: After reallocating mem[1] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
@@ -182,7 +176,7 @@ TEST(PMAllocTest, ReallocTest2) {
 }
 
 // Test realloc
-TEST(PMAllocTest, ReallocTest3) {
+TEST(PMAllocTest, ReallocTestToSameSize) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -207,7 +201,7 @@ TEST(PMAllocTest, ReallocTest3) {
   mem[2] = pmalloc_realloc(pm, mem[2], newSize);
 
   #ifdef DEBUG
-    printf("ReallocTest3: After reallocating mem[2] to size %u:\n", newSize);
+    printf("ReallocTestToSameSize: After reallocating mem[2] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
@@ -215,7 +209,7 @@ TEST(PMAllocTest, ReallocTest3) {
 }
 
 // Reallocate a block at the end of the allocated chain with space after to a larger size
-TEST(PMAllocTest, ReallocTest4) {
+TEST(PMAllocTest, ReallocTestEndOfChainWithSpaceAfter) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -233,7 +227,7 @@ TEST(PMAllocTest, ReallocTest4) {
   }
 
   #ifdef DEBUG
-    printf("ReallocTest4: Initial:\n");
+    printf("ReallocTestEndOfChainWithSpaceAfter: Initial:\n");
     pmalloc_dump_stats(pm);
   #endif
 
@@ -242,7 +236,7 @@ TEST(PMAllocTest, ReallocTest4) {
   mem[3] = pmalloc_realloc(pm, mem[3], newSize);
 
   #ifdef DEBUG
-    printf("ReallocTest4: After reallocating mem[3] to size %u:\n", newSize);
+    printf("ReallocTestEndOfChainWithSpaceAfter: After reallocating mem[3] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
@@ -250,7 +244,7 @@ TEST(PMAllocTest, ReallocTest4) {
 }
 
 // Reallocate a block at in the middle of the allocated chain with space after to a larger size
-TEST(PMAllocTest, ReallocTest5) {
+TEST(PMAllocTest, ReallocTestMiddleChainWithSpaceAfter) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -270,7 +264,7 @@ TEST(PMAllocTest, ReallocTest5) {
   pmalloc_free(pm, mem[2]);
 
   #ifdef DEBUG
-    printf("ReallocTest5: Initial:\n");
+    printf("ReallocTestMiddleChainWithSpaceAfter: Initial:\n");
     pmalloc_dump_stats(pm);
   #endif
 
@@ -278,7 +272,7 @@ TEST(PMAllocTest, ReallocTest5) {
   mem[1] = pmalloc_realloc(pm, mem[1], newSize);
 
   #ifdef DEBUG
-    printf("ReallocTest5: After reallocating mem[1] to size %u:\n", newSize);
+    printf("ReallocTestMiddleChainWithSpaceAfter: After reallocating mem[1] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
@@ -286,7 +280,7 @@ TEST(PMAllocTest, ReallocTest5) {
 }
 
 // Reallocate should fail when there's free space but not enough at the end of the memory
-TEST(PMAllocTest, ReallocTest6) {
+TEST(PMAllocTest, ReallocTestEndOfMemNoFreeSpace) {
   pmalloc_t pmblock;
   pmalloc_t *pm = &pmblock;
 
@@ -304,7 +298,7 @@ TEST(PMAllocTest, ReallocTest6) {
   }
 
   #ifdef DEBUG
-    printf("ReallocTest6: Initial:\n");
+    printf("ReallocTestEndOfMemNoFreeSpace: Initial:\n");
     pmalloc_dump_stats(pm);
   #endif
 
@@ -312,7 +306,7 @@ TEST(PMAllocTest, ReallocTest6) {
   mem[1] = pmalloc_realloc(pm, mem[1], newSize);
 
   #ifdef DEBUG
-    printf("ReallocTest6: After reallocating mem[1] to size %u:\n", newSize);
+    printf("ReallocTestEndOfMemNoFreeSpace: After reallocating mem[1] to size %u:\n", newSize);
     pmalloc_dump_stats(pm);
   #endif
 
