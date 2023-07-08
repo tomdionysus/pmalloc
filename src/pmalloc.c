@@ -100,7 +100,7 @@ void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
 
     // Get the actual pmalloc_item_t of the block
 	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
-
+    
     // If the requested size is equal to the current size, return the original pointer
     if (node->size == requestedSize) return ptr;
 
@@ -114,12 +114,12 @@ void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
      	newFree->size = (node->size - requestedSize) - sizeof(pmalloc_item_t);
      	pmalloc_item_insert(&pm->available, newFree);
 
-     	// Set the new node size
-     	node->size = requestedSize;
-
      	// Update free memory and node count
      	pm->freemem += (node->size - requestedSize) - sizeof(pmalloc_item_t);
      	pm->totalnodes++;
+
+     	// Resize this block
+     	node->size = requestedSize;
 
      	// Merge around the new free block
      	pmalloc_merge(pm, newFree);
@@ -128,7 +128,43 @@ void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
      	return ptr;
     }
 
-    // TODO: Expand the block if possible
+    // // Shortcut if we know there's not enough memory
+    if (requestedSize - node->size > pmalloc_freemem(pm)) return NULL;
+
+    // Expand the block if the requested size is larger than the current size
+    if (requestedSize > node->size) {
+    	// Does the next allocated block have enough space before it for this node to expand?
+    	if(node->next == NULL || (char*)(node->next) > (char*)node + sizeof(pmalloc_item_t) + requestedSize) {
+    		// Get the existing block of free space in between node and the next
+    		pmalloc_item_t *freeBlock = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + node->size);
+    		// Get the free block current size
+    		uint32_t freeBlockSize = freeBlock->size;
+    		// Remove that block from the free chain
+    		pmalloc_item_remove(&pm->available, freeBlock);
+
+    		// Create a new free block with the difference in size, after this node if it was resized
+    		freeBlock = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + requestedSize);
+    		freeBlock->size = freeBlockSize - (requestedSize - node->size);
+
+    		// Add it to the free list
+    		pmalloc_item_insert(&pm->available, freeBlock);
+
+    		// Update the stats
+    		pm->freemem -= requestedSize - node->size;
+    		// pm->totalnodes stays the same, we removed one and added one
+
+    		// Resize this block
+    		node->size = requestedSize;
+
+    		// Merge around the new free block
+     		pmalloc_merge(pm, freeBlock);
+
+    		// Return original pointer
+    		return ptr;
+    	};
+    }
+
+    // If all else fails, completely reallocate the block, copy its contents, and free the old block.
 
     // Allocate a new block with the requested size
     void *newPtr = pmalloc_malloc(pm, requestedSize);
