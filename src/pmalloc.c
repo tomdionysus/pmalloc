@@ -99,7 +99,7 @@ void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
     if (ptr == NULL) return pmalloc_malloc(pm, requestedSize);
 
     // Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
     
     // If the requested size is equal to the current size, return the original pointer
     if (node->size == requestedSize) return ptr;
@@ -188,7 +188,7 @@ void pmalloc_free(pmalloc_t *pm, void *ptr)
 	if(ptr == NULL) return;
 
 	// Get the node of this memory
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
 
 	// Remove it from pm->assigned
 	pmalloc_item_remove(&pm->assigned, node);
@@ -219,7 +219,7 @@ void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node) {
 
 uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr) {
 	// Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
 
 	// Return its size
 	return node->size;
