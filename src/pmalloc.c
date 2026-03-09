@@ -31,6 +31,11 @@ void pmalloc_init(pmalloc_t *pm) {
 
 void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)
 {
+    // Ensure block alignment
+    uintptr_t ptralignd = ((uintptr_t)ptr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+    size -= ptralignd - (uintptr_t)ptr;
+    ptr = (void*)ptralignd;
+
 	// Get the usable size of the block
 	((pmalloc_item_t*)ptr)->size = size - sizeof(pmalloc_item_t);
 
@@ -45,6 +50,9 @@ void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)
 
 void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 {
+    // Ensure pmalloc_item alignment
+    size = (size + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+
 	// Find a suitable block
 	pmalloc_item_t *current = pm->available;
 	while(current != NULL && current->size < size) current = current->next;
@@ -95,11 +103,14 @@ void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
 
 void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
 {
+    // Ensure pmalloc_item alignment
+    requestedSize = (requestedSize + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+
     // Match stdlib realloc() NULL interface
     if (ptr == NULL) return pmalloc_malloc(pm, requestedSize);
 
     // Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
     
     // If the requested size is equal to the current size, return the original pointer
     if (node->size == requestedSize) return ptr;
@@ -188,7 +199,7 @@ void pmalloc_free(pmalloc_t *pm, void *ptr)
 	if(ptr == NULL) return;
 
 	// Get the node of this memory
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
 
 	// Remove it from pm->assigned
 	pmalloc_item_remove(&pm->assigned, node);
@@ -219,7 +230,7 @@ void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node) {
 
 uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr) {
 	// Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)(ptr - sizeof(pmalloc_item_t));
+	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
 
 	// Return its size
 	return node->size;
