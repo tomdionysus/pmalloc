@@ -89,7 +89,7 @@ void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
 {
 	char *mem = pmalloc_malloc(pm, num * size);
 	if(mem==NULL) return NULL;
-	for(uint32_t i=0; i<size; i++) mem[i]=0;
+	for(uint32_t i=0; i<num * size; i++) mem[i]=0;
 	return mem;
 }
 
