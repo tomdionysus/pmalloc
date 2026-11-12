@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml)
-[![codecov](https://codecov.io/gh/tomdionysus/pmalloc/graph/badge.svg)](https://codecov.io/gh/tomdionysus/pmalloc)
+[![codecov](https://codecov.io/gh/tomdionysus/pmalloc/branch/main/graph/badge.svg)](https://codecov.io/gh/tomdionysus/pmalloc/tree/main)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A minimal C library to manage memory with a familiar malloc/free pattern, on embedded systems
