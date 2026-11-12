@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Linux GCC Release", os: ubuntu-latest, cc: gcc, build_type: Release }
+          - { name: "Linux GCC Debug", os: ubuntu-latest, cc: gcc, build_type: Debug }
+          - { name: "Linux Clang Release", os: ubuntu-latest, cc: clang, build_type: Release }
+          - { name: "Linux GCC 32-bit", os: ubuntu-latest, cc: gcc, build_type: Debug, cflags: "-m32", packages: gcc-multilib }
+          - { name: "Linux GCC PMALLOC_ALIGN=16", os: ubuntu-latest, cc: gcc, build_type: Debug, cmake_args: "-DPMALLOC_ALIGN=16" }
+          - { name: "Linux GCC PMALLOC_ALIGN=64", os: ubuntu-latest, cc: gcc, build_type: Debug, cmake_args: "-DPMALLOC_ALIGN=64" }
+          - { name: "macOS Clang Release", os: macos-latest, cc: clang, build_type: Release }
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install packages
+        if: matrix.packages
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_C_COMPILER=${{ matrix.cc }}
+          -DCMAKE_C_FLAGS="${{ matrix.cflags }}"
+          -DPMALLOC_WARNINGS_AS_ERRORS=ON
+          ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ./build/pmalloc_tests
+
+      - name: Examples
+        run: ./build/pmalloc_example_basic && ./build/pmalloc_example_suballocation
+
+  embedded:
+    name: Cortex-M cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Compile for Cortex-M0 and Cortex-M4
+        run: |
+          for cpu in cortex-m0 cortex-m4; do
+            arm-none-eabi-gcc -mcpu=$cpu -mthumb -Os -std=c99 \
+              -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror \
+              -c src/pmalloc.c -o pmalloc-$cpu.o
+            arm-none-eabi-size pmalloc-$cpu.o
+          done
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install gcovr
+        run: sudo apt-get update && sudo apt-get install -y gcovr
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc -DPMALLOC_COVERAGE=ON -DPMALLOC_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ./build/pmalloc_tests
+
+      - name: Report, requiring 100% line and branch coverage
+        run: >
+          gcovr --root . --filter src/ --object-directory build
+          --cobertura coverage.xml --txt --print-summary
+          --fail-under-line 100 --fail-under-branch 100
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
