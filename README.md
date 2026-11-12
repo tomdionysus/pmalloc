@@ -1,6 +1,6 @@
 # pmalloc
 
-[![Release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Ftomdionysus%2Fpmalloc%2Freleases%2Flatest&query=%24.tag_name&label=release&color=blue)](https://github.com/tomdionysus/pmalloc/releases/latest)
+[![Release](https://img.shields.io/github/v/release/tomdionysus/pmalloc?display_name=release&label=latest)](https://github.com/tomdionysus/pmalloc/releases/latest)
 [![CI](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/tomdionysus/pmalloc/branch/main/graph/badge.svg)](https://codecov.io/gh/tomdionysus/pmalloc/tree/main)
