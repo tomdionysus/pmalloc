@@ -60,10 +60,66 @@ Build `pmalloc.c` and any code that reads `PMALLOC_ALIGN` with the same value. T
 adds the definition to the `pmalloc` target's public interface, so targets that link it see the
 same value.
 
+### PMALLOC_CHECKS
+
+Define `PMALLOC_CHECKS` to have pmalloc validate what it is given:
+
+- `pmalloc_free`, `pmalloc_realloc` and `pmalloc_sizeof` accept only a pointer pmalloc returned
+  and has not freed. A double free, a pointer into the middle of a block, a misaligned pointer or
+  one from elsewhere fails the check. The pointer is never dereferenced.
+- `pmalloc_addblock` refuses a region that overlaps any block already in the heap. A region that
+  only touches the heap is accepted.
+
+A call that fails a check changes nothing: `pmalloc_free` and `pmalloc_addblock` return,
+`pmalloc_realloc` returns NULL and `pmalloc_sizeof` returns 0. It then calls
+`PMALLOC_CHECK_FAILED(pm, ptr)` with the heap and the pointer or region that failed. NULL is never
+a failure.
+
+Each check walks the allocated chain, so `free`, `realloc` and `sizeof` cost time in proportion to
+the number of live blocks. The checks add about 130 bytes of code on a Cortex-M0 and nothing to
+the memory each block uses. Without `PMALLOC_CHECKS` none of this code is compiled.
+
+With CMake: `-DPMALLOC_CHECKS=ON`.
+
+### PMALLOC_CHECK_FAILED
+
+A function-like macro called with `(pm, ptr)` when a check fails. It does nothing unless you
+define it, typically to stop in a debugger or log the pointer:
+
+```c
+// pmalloc_config.h
+#define PMALLOC_CHECKS
+struct pmalloc;
+void heap_misuse(struct pmalloc* pm, void* ptr);
+#define PMALLOC_CHECK_FAILED(pm, ptr) heap_misuse(pm, ptr)
+```
+
+Because it usually names a function of yours, define it in a configuration header.
+
+### PMALLOC_CONFIG_HEADER
+
+Define `PMALLOC_CONFIG_HEADER` as a quoted file name, and `pmalloc.h` includes that file before
+anything else, so `PMALLOC_ALIGN`, `PMALLOC_CHECKS` and `PMALLOC_CHECK_FAILED` can be set in one
+place:
+
+```bash
+cc -DPMALLOC_CONFIG_HEADER='"pmalloc_config.h"' -Iconfig -c src/pmalloc.c
+```
+
+With CMake, add the definition and the header's directory to the `pmalloc` target:
+
+```cmake
+target_compile_definitions(pmalloc PUBLIC PMALLOC_CONFIG_HEADER="pmalloc_config.h")
+target_include_directories(pmalloc PUBLIC config)
+```
+
+The file is included before pmalloc's types are declared, so refer to `pmalloc_t` there as
+`struct pmalloc`.
+
 ### PMALLOC_VERSION
 
 `PMALLOC_VERSION_MAJOR`, `PMALLOC_VERSION_MINOR` and `PMALLOC_VERSION_PATCH` are integers, and
-`PMALLOC_VERSION` is the same version as a string, for example `"0.2.0"`.
+`PMALLOC_VERSION` is the same version as a string, for example `"0.3.0"`.
 
 ## Types
 
@@ -120,7 +176,8 @@ the part of it between its first and last `PMALLOC_ALIGN` boundaries.
   size.
 - When a region directly touches memory already in the heap, the first or last `PMALLOC_ALIGN`
   bytes of the new region are left unused so the two are never merged.
-- Do not add the same memory twice, or memory that overlaps a region already added.
+- Do not add the same memory twice, or memory that overlaps a region already added. With
+  `PMALLOC_CHECKS` such a region is refused.
 
 ### pmalloc_malloc
 
@@ -163,6 +220,7 @@ Resize the block at `ptr` to `size` bytes and return a pointer to it.
   allocated.
 - If `size` rounded up to `PMALLOC_ALIGN` does not fit in 32 bits, it returns NULL and changes
   nothing.
+- With `PMALLOC_CHECKS`, a pointer pmalloc did not return makes it return NULL and change nothing.
 
 ### pmalloc_free
 
@@ -171,7 +229,7 @@ void pmalloc_free(pmalloc_t *pm, void *ptr);
 ```
 
 Free the block at `ptr`, which must have come from this heap and not already been freed. Freeing
-NULL does nothing.
+NULL does nothing. With `PMALLOC_CHECKS`, any other pointer is refused.
 
 ### pmalloc_sizeof
 
@@ -185,7 +243,7 @@ too small to become a free block; then it is the block's whole usable size, whic
 the size asked for by less than one header and two `PMALLOC_ALIGN` units. Every byte up to the
 returned size may be used.
 
-Returns 0 for NULL.
+Returns 0 for NULL, and with `PMALLOC_CHECKS` for any pointer pmalloc did not return.
 
 ### pmalloc_freemem
 
@@ -268,8 +326,9 @@ end, total bytes, header bytes and size.
 
 ## Caveats
 
-- pmalloc does no hardening. Freeing a pointer that did not come from the heap, freeing twice, or
-  writing past the end of a block corrupts the heap.
+- Freeing a pointer that did not come from the heap, freeing twice, or adding overlapping memory
+  corrupts the heap unless pmalloc is built with [`PMALLOC_CHECKS`](#pmalloc_checks). Writing past
+  the end of a block corrupts the heap in every build.
 - pmalloc is not thread safe. Guard a shared `pmalloc_t` with your own lock, or give each thread
   its own.
 - Sizes are 32-bit. A single region or allocation cannot exceed 4 GiB, and `totalmem` must fit in

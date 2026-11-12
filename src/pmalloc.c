@@ -45,6 +45,31 @@ static uintptr_t pm_end(const pmalloc_item_t* node) {
 static pmalloc_item_t* pm_node(void* ptr) { return (pmalloc_item_t*)((uintptr_t)ptr - PM_HDR); }
 static void* pm_payload(const pmalloc_item_t* node) { return (void*)((uintptr_t)node + PM_HDR); }
 
+#ifdef PMALLOC_CHECKS
+#ifndef PMALLOC_CHECK_FAILED
+#define PMALLOC_CHECK_FAILED(pm, ptr) ((void)0)
+#endif
+
+// Returns 1 if ptr is the payload of a block on the assigned chain. Never dereferences ptr.
+static int pm_owned(const pmalloc_t* pm, const void* ptr) {
+    for (const pmalloc_item_t* node = pm->assigned; node != NULL; node = node->next) {
+        if (pm_payload(node) == ptr) return 1;
+    }
+    return 0;
+}
+
+// Returns 1 if the memory from start to end overlaps any block, free or assigned.
+static int pm_overlaps(const pmalloc_t* pm, uintptr_t start, uintptr_t end) {
+    const pmalloc_item_t* chains[2] = {pm->available, pm->assigned};
+    for (int i = 0; i < 2; i++) {
+        for (const pmalloc_item_t* node = chains[i]; node != NULL; node = node->next) {
+            if ((uintptr_t)node < end && pm_end(node) > start) return 1;
+        }
+    }
+    return 0;
+}
+#endif
+
 // Rounds size up to PMALLOC_ALIGN. Returns 0 if the result would not fit in 32 bits.
 static int pm_round(uint32_t size, uint32_t* rounded) {
     if (size > UINT32_MAX - PM_MASK) return 0;
@@ -89,6 +114,13 @@ void pmalloc_addblock(pmalloc_t* pm, void* ptr, uint32_t size) {
     // Use only the aligned part of the region
     uintptr_t start = ((uintptr_t)ptr + PM_MASK) & ~(uintptr_t)PM_MASK;
     uintptr_t end = ((uintptr_t)ptr + size) & ~(uintptr_t)PM_MASK;
+
+#ifdef PMALLOC_CHECKS
+    if (pm_overlaps(pm, start, end)) {
+        PMALLOC_CHECK_FAILED(pm, ptr);
+        return;
+    }
+#endif
 
     // Keep one alignment unit between this region and any block it touches, so they never merge
     pmalloc_item_t* chains[2] = {pm->available, pm->assigned};
@@ -142,6 +174,13 @@ void* pmalloc_realloc(pmalloc_t* pm, void* ptr, uint32_t size) {
     // Match stdlib realloc() NULL interface
     if (ptr == NULL) return pmalloc_malloc(pm, size);
 
+#ifdef PMALLOC_CHECKS
+    if (!pm_owned(pm, ptr)) {
+        PMALLOC_CHECK_FAILED(pm, ptr);
+        return NULL;
+    }
+#endif
+
     uint32_t want;
     if (!pm_round(size, &want)) return NULL;
 
@@ -180,6 +219,13 @@ void pmalloc_free(pmalloc_t* pm, void* ptr) {
     // Match stdlib free() NULL interface
     if (ptr == NULL) return;
 
+#ifdef PMALLOC_CHECKS
+    if (!pm_owned(pm, ptr)) {
+        PMALLOC_CHECK_FAILED(pm, ptr);
+        return;
+    }
+#endif
+
     pmalloc_item_t* node = pm_node(ptr);
     pmalloc_item_remove(&pm->assigned, node);
     node->size = pm_span(node);
@@ -205,6 +251,14 @@ void pmalloc_merge(pmalloc_t* pm, pmalloc_item_t* node) {
 uint32_t pmalloc_sizeof(pmalloc_t* pm, void* ptr) {
     (void)pm;
     if (ptr == NULL) return 0;
+
+#ifdef PMALLOC_CHECKS
+    if (!pm_owned(pm, ptr)) {
+        PMALLOC_CHECK_FAILED(pm, ptr);
+        return 0;
+    }
+#endif
+
     return pm_node(ptr)->size;
 }
 

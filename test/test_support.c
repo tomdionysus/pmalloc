@@ -8,6 +8,16 @@
 
 _Alignas(256) unsigned char pm_test_arena[PM_TEST_ARENA_BYTES];
 
+uint32_t pm_test_check_failures;
+pmalloc_t* pm_test_check_last_pm;
+void* pm_test_check_last_ptr;
+
+void pm_test_check_failed(struct pmalloc* pm, void* ptr) {
+    pm_test_check_failures++;
+    pm_test_check_last_pm = pm;
+    pm_test_check_last_ptr = ptr;
+}
+
 #define PM_TEST_MAX_NODES 32768u
 
 static const pmalloc_item_t* pm_test_nodes[PM_TEST_MAX_NODES];

@@ -40,6 +40,12 @@ void pm_test_check_heap(pmalloc_t* pm, uint32_t regions);
 void pm_test_check_tiling(pmalloc_t* pm, const void* start, const void* end);
 void pm_test_check_poison(const unsigned char* from, uint32_t bytes);
 
+// Every PMALLOC_CHECK_FAILED call: how many since setUp, and the arguments of the last one.
+// tearDown fails a test that leaves this non-zero, so a test expecting failures resets it.
+extern uint32_t pm_test_check_failures;
+extern pmalloc_t* pm_test_check_last_pm;
+extern void* pm_test_check_last_ptr;
+
 void pm_test_fill(void* ptr, uint32_t bytes, uint32_t seed);
 int pm_test_verify(const void* ptr, uint32_t bytes, uint32_t seed);
 
@@ -49,6 +55,7 @@ void run_free_tests(void);
 void run_calloc_tests(void);
 void run_realloc_tests(void);
 void run_internal_tests(void);
+void run_check_tests(void);
 void run_stress_tests(void);
 
 #endif

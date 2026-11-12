@@ -5,13 +5,24 @@
 #include <stdint.h>
 
 #define PMALLOC_VERSION_MAJOR 0
-#define PMALLOC_VERSION_MINOR 2
+#define PMALLOC_VERSION_MINOR 3
 #define PMALLOC_VERSION_PATCH 0
-#define PMALLOC_VERSION "0.2.0"
+#define PMALLOC_VERSION "0.3.0"
+
+// Optional build configuration. Define PMALLOC_CONFIG_HEADER as a quoted file name, for example
+// -DPMALLOC_CONFIG_HEADER='"pmalloc_config.h"', to set the options below in one place. The file is
+// included before pmalloc's types are declared, so refer to pmalloc_t there as struct pmalloc.
+#ifdef PMALLOC_CONFIG_HEADER
+#include PMALLOC_CONFIG_HEADER
+#endif
 
 // Alignment, in bytes, of every block header and every pointer pmalloc returns. Must be a power
 // of two no smaller than the alignment of a pointer. Override at compile time, for example
 // -DPMALLOC_ALIGN=16, and build pmalloc.c and its callers with the same value.
+//
+// Define PMALLOC_CHECKS to validate every pointer passed to pmalloc_free, pmalloc_realloc and
+// pmalloc_sizeof, and every region passed to pmalloc_addblock. A call that fails a check changes
+// nothing and calls PMALLOC_CHECK_FAILED(pm, ptr), which does nothing unless you define it.
 #ifndef PMALLOC_ALIGN
 #define PMALLOC_ALIGN sizeof(void*)
 #endif

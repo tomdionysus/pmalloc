@@ -37,6 +37,7 @@ option(PMALLOC_BUILD_TESTING "Build pmalloc_tests (Unity)" ${PMALLOC_TOP_LEVEL})
 option(PMALLOC_BUILD_EXAMPLES "Build the examples" ${PMALLOC_TOP_LEVEL})
 option(PMALLOC_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(PMALLOC_COVERAGE "Instrument pmalloc and its tests for coverage (GCC or Clang)" OFF)
+option(PMALLOC_CHECKS "Validate pointers and regions passed to pmalloc, at the cost of a list walk per call" OFF)
 set(PMALLOC_ALIGN "" CACHE STRING "Block alignment in bytes: a power of two, at least the pointer size. Empty for the pointer size")
 
 include(GNUInstallDirs)
@@ -57,26 +58,26 @@ endif()
 
 # The library
 
+# Settings shared by the library and the copy the tests build.
+function(pmalloc_configure target)
+  target_include_directories(${target} PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  set_target_properties(${target} PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  target_link_libraries(${target} PRIVATE $<BUILD_INTERFACE:pmalloc_warnings>)
+  if(NOT PMALLOC_ALIGN STREQUAL "")
+    target_compile_definitions(${target} PUBLIC PMALLOC_ALIGN=${PMALLOC_ALIGN})
+  endif()
+  if(PMALLOC_CHECKS)
+    target_compile_definitions(${target} PUBLIC PMALLOC_CHECKS)
+  endif()
+endfunction()
+
 add_library(pmalloc src/pmalloc.c)
 add_library(pmalloc::pmalloc ALIAS pmalloc)
-target_include_directories(pmalloc PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-set_target_properties(pmalloc PROPERTIES
-  C_STANDARD 99
-  C_STANDARD_REQUIRED ON
-  C_EXTENSIONS OFF
-  VERSION ${PROJECT_VERSION}
-  PUBLIC_HEADER src/pmalloc.h)
-target_link_libraries(pmalloc PRIVATE $<BUILD_INTERFACE:pmalloc_warnings>)
+pmalloc_configure(pmalloc)
+set_target_properties(pmalloc PROPERTIES VERSION ${PROJECT_VERSION} PUBLIC_HEADER src/pmalloc.h)
 target_compile_definitions(pmalloc PRIVATE $<$<CONFIG:Debug>:DEBUG>)
-if(NOT PMALLOC_ALIGN STREQUAL "")
-  target_compile_definitions(pmalloc PUBLIC PMALLOC_ALIGN=${PMALLOC_ALIGN})
-endif()
-if(PMALLOC_COVERAGE)
-  target_compile_options(pmalloc PRIVATE --coverage -O0)
-  target_link_options(pmalloc INTERFACE $<BUILD_INTERFACE:--coverage>)
-endif()
 
 # Examples
 
@@ -95,6 +96,19 @@ if(PMALLOC_BUILD_TESTING)
   target_include_directories(pmalloc_unity SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/test/vendor/unity)
   target_compile_definitions(pmalloc_unity PUBLIC UNITY_SUPPORT_64)
 
+  # The tests link their own copy of pmalloc.c, configured with test/pmalloc_test_config.h so every
+  # failed check is recorded, and instrumented for coverage when asked.
+  add_library(pmalloc_under_test STATIC src/pmalloc.c)
+  pmalloc_configure(pmalloc_under_test)
+  target_include_directories(pmalloc_under_test PUBLIC ${PROJECT_SOURCE_DIR}/test)
+  target_compile_definitions(pmalloc_under_test PUBLIC
+    PMALLOC_CONFIG_HEADER="pmalloc_test_config.h"
+    $<$<CONFIG:Debug>:DEBUG>)
+  if(PMALLOC_COVERAGE)
+    target_compile_options(pmalloc_under_test PRIVATE --coverage -O0)
+    target_link_options(pmalloc_under_test INTERFACE --coverage)
+  endif()
+
   add_executable(pmalloc_tests
     test/test_main.c
     test/test_support.c
@@ -104,13 +118,13 @@ if(PMALLOC_BUILD_TESTING)
     test/test_calloc.c
     test/test_realloc.c
     test/test_internals.c
+    test/test_checks.c
     test/test_stress.c)
   set_target_properties(pmalloc_tests PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-  target_compile_definitions(pmalloc_tests PRIVATE $<$<CONFIG:Debug>:DEBUG>)
-  target_link_libraries(pmalloc_tests PRIVATE pmalloc pmalloc_unity pmalloc_warnings)
+  target_link_libraries(pmalloc_tests PRIVATE pmalloc_under_test pmalloc_unity pmalloc_warnings)
 endif()
 
-# Install and export: find_package(pmalloc 0.2 CONFIG) then link pmalloc::pmalloc
+# Install and export: find_package(pmalloc 0.3 CONFIG) then link pmalloc::pmalloc
 
 include(CMakePackageConfigHelpers)
 install(TARGETS pmalloc

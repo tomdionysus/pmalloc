@@ -23,6 +23,8 @@ jobs:
           - { name: "Linux GCC 32-bit", os: ubuntu-latest, cc: gcc, build_type: Debug, cflags: "-m32", packages: gcc-multilib }
           - { name: "Linux GCC PMALLOC_ALIGN=16", os: ubuntu-latest, cc: gcc, build_type: Debug, cmake_args: "-DPMALLOC_ALIGN=16" }
           - { name: "Linux GCC PMALLOC_ALIGN=64", os: ubuntu-latest, cc: gcc, build_type: Debug, cmake_args: "-DPMALLOC_ALIGN=64" }
+          - { name: "Linux GCC PMALLOC_CHECKS", os: ubuntu-latest, cc: gcc, build_type: Release, cmake_args: "-DPMALLOC_CHECKS=ON" }
+          - { name: "Linux GCC 32-bit PMALLOC_CHECKS", os: ubuntu-latest, cc: gcc, build_type: Debug, cflags: "-m32", packages: gcc-multilib, cmake_args: "-DPMALLOC_CHECKS=ON" }
           - { name: "macOS Clang Release", os: macos-latest, cc: clang, build_type: Release }
     steps:
       - uses: actions/checkout@v5
@@ -70,13 +72,15 @@ jobs:
       - name: Install toolchain
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
 
-      - name: Compile for Cortex-M0 and Cortex-M4
+      - name: Compile for Cortex-M0 and Cortex-M4, with and without PMALLOC_CHECKS
         run: |
           for cpu in cortex-m0 cortex-m4; do
-            arm-none-eabi-gcc -mcpu=$cpu -mthumb -Os -std=c99 \
-              -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror \
-              -c src/pmalloc.c -o pmalloc-$cpu.o
-            arm-none-eabi-size pmalloc-$cpu.o
+            for checks in "" "-DPMALLOC_CHECKS"; do
+              arm-none-eabi-gcc -mcpu=$cpu -mthumb -Os -std=c99 $checks \
+                -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror \
+                -c src/pmalloc.c -o "pmalloc-$cpu$checks.o"
+              arm-none-eabi-size "pmalloc-$cpu$checks.o"
+            done
           done
 
   coverage:
@@ -89,7 +93,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcovr
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc -DPMALLOC_COVERAGE=ON -DPMALLOC_WARNINGS_AS_ERRORS=ON
+        # PMALLOC_CHECKS only adds code, so a checked Debug build compiles every line of pmalloc.c.
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc -DPMALLOC_COVERAGE=ON -DPMALLOC_CHECKS=ON -DPMALLOC_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build build -j

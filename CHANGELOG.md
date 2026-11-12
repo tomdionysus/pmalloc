@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+No function, type or declaration has changed, and a build without the new options produces the
+same code as 0.2.0.
+
+### Added
+
+- `PMALLOC_CHECKS`: refuse double frees, pointers pmalloc did not return, and regions that
+  overlap the heap, instead of corrupting it. A refused call changes nothing and calls
+  `PMALLOC_CHECK_FAILED(pm, ptr)`. Set with `-DPMALLOC_CHECKS` or the CMake option of the same
+  name.
+- `PMALLOC_CHECK_FAILED(pm, ptr)`: a hook for failed checks, doing nothing unless defined.
+- `PMALLOC_CONFIG_HEADER`: a header `pmalloc.h` includes first, to set the options in one place.
+
+### Build and tests
+
+- Sources are formatted by clang-format 22.1.8 with the project's `.clang-format`, checked in CI.
+  `.editorconfig` covers the other files.
+- The tests build their own copy of `pmalloc.c`, record every failed check, and fail any test that
+  trips one unexpectedly. Six new tests cover the checks. CI runs checked builds, measures
+  coverage with checks on, and cross-compiles for Cortex-M with and without them.
+
 ## 0.2.0
 
 No function, type or declaration has changed. Code written against 0.1.0 compiles and links

@@ -25,7 +25,7 @@ embedded toolchains.
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(pmalloc GIT_REPOSITORY https://github.com/tomdionysus/pmalloc.git GIT_TAG 0.2.0)
+FetchContent_Declare(pmalloc GIT_REPOSITORY https://github.com/tomdionysus/pmalloc.git GIT_TAG 0.3.0)
 FetchContent_MakeAvailable(pmalloc)
 
 target_link_libraries(your_target PRIVATE pmalloc::pmalloc)
@@ -42,7 +42,7 @@ cmake --install build --prefix /your/prefix
 ```
 
 ```cmake
-find_package(pmalloc 0.2 CONFIG REQUIRED)
+find_package(pmalloc 0.3 CONFIG REQUIRED)
 target_link_libraries(your_target PRIVATE pmalloc::pmalloc)
 ```
 
@@ -84,6 +84,13 @@ cmake -S . -B build -DPMALLOC_ALIGN=16      # with CMake
 
 It must be a power of two, at least the size of a pointer.
 
+### 4. Turn on checks while you develop
+
+Build with `PMALLOC_CHECKS` defined (`-DPMALLOC_CHECKS=ON` with CMake) and pmalloc refuses double
+frees, pointers it did not return and overlapping regions instead of corrupting the heap, and calls
+a hook of yours so you can stop on the bug. It costs about 130 bytes of code and a list walk per
+call, and nothing at all when left off. See [PMALLOC_CHECKS](docs/API.md#pmalloc_checks).
+
 ## Documentation
 
 The [API reference](docs/API.md) covers every function, the memory layout, the configuration and
@@ -103,6 +110,7 @@ so nothing is downloaded. A `Debug` build also enables `pmalloc_dump_stats`.
 | Option | Default | Effect |
 |---|---|---|
 | `PMALLOC_ALIGN` | pointer size | Alignment of every block and returned pointer |
+| `PMALLOC_CHECKS` | OFF | Validate every pointer and region passed in |
 | `PMALLOC_BUILD_TESTING` | ON when top level | Build `pmalloc_tests` |
 | `PMALLOC_BUILD_EXAMPLES` | ON when top level | Build the examples |
 | `PMALLOC_WARNINGS_AS_ERRORS` | OFF | Treat compiler warnings as errors |
@@ -119,9 +127,10 @@ gcovr --root . --filter src/ --object-directory build
 
 ## Caveats
 
-pmalloc is built for minimalism. It does not defend against misuse: freeing a pointer it did not
-allocate, freeing twice or writing past a block corrupts the heap. It is not thread safe. Sizes
-are 32-bit. See [Caveats](docs/API.md#caveats).
+pmalloc is built for minimalism. Unless built with `PMALLOC_CHECKS`, it does not defend against
+misuse: freeing a pointer it did not allocate or freeing twice corrupts the heap, and writing past
+a block always does. It is not thread safe. Sizes are 32-bit. See
+[Caveats](docs/API.md#caveats).
 
 ## Contributing
 
