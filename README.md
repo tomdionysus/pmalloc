@@ -1,223 +1,135 @@
 # pmalloc
 
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/tomdionysus/pmalloc/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/tomdionysus/pmalloc/tree/master) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+[![CI](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml/badge.svg)](https://github.com/tomdionysus/pmalloc/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/tomdionysus/pmalloc/graph/badge.svg)](https://codecov.io/gh/tomdionysus/pmalloc)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A extremely minimal C library (5 KB) to manage memory using a familiar malloc/free pattern in embedded systems, or to manage sub-allocation within an area of memory given by the OS.
+A minimal C library to manage memory with a familiar malloc/free pattern, on embedded systems
+with no heap of their own, or to sub-allocate within a block of memory given by the OS.
 
-**pmalloc is BETA: Use at your own risk.**
+- Two files, `src/pmalloc.h` and `src/pmalloc.c`, in plain C99 with no dependencies.
+- Under 1 KB of code on a Cortex-M (784 bytes on Cortex-M0, `-Os`).
+- `malloc`, `calloc`, `realloc` and `free`, with every returned pointer aligned to a configurable
+  boundary.
+- Any number of separate memory regions in one heap.
+- 100% line and branch test coverage.
 
-## Building
+## Getting started
 
-pmalloc uses [CMake](https://cmake.org/) so building is trivial:
+### 1. Add pmalloc to your project
 
-```bash
-mkdir build
-cd build
-cmake ..
-make
+**Copy the files.** Add `src/pmalloc.h` and `src/pmalloc.c` to your build. This suits most
+embedded toolchains.
+
+**Or use CMake.** With pmalloc in a subdirectory, or fetched:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(pmalloc GIT_REPOSITORY https://github.com/tomdionysus/pmalloc.git GIT_TAG 0.2.0)
+FetchContent_MakeAvailable(pmalloc)
+
+target_link_libraries(your_target PRIVATE pmalloc::pmalloc)
 ```
 
-You'll find `libpmalloc.a` in the `build/lib` folder. 
+As a subproject, pmalloc builds only the library, not its tests or examples.
 
-## Testing
-
-pmalloc uses [GoogleTest](https://github.com/google/googletest) which is installed by **CMake**:
+**Or install it** and use `find_package`:
 
 ```bash
-mkdir build
-cd build
-cmake ..
-make
-./pmalloc_test
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build --prefix /your/prefix
 ```
 
-## Debug Build / Test
-
-pmalloc will dump extra debug information in testing (and enable the `pmalloc_dump_stats` function) if built in debug mode:
-
-```bash
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Debug .. 
-make
-./pmalloc_test
+```cmake
+find_package(pmalloc 0.2 CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE pmalloc::pmalloc)
 ```
 
-## Getting Started
+### 2. Give it memory and allocate
 
-A simple example of use:
-
-```C
-#include <stdio.h>
+```c
 #include "pmalloc.h"
 
-int main() {
-  printf("pmalloc: Basic Example\n\n");
+static pmalloc_t heap;
+static unsigned char memory[16384];  // or a fixed address and size on your board
 
-  pmalloc_t pmblock;
-  pmalloc_t *pm = &pmblock;
+int main(void) {
+  pmalloc_init(&heap);
+  pmalloc_addblock(&heap, memory, sizeof(memory));
 
-  // Initialise our pmalloc
-  pmalloc_init(pm);
+  char *buffer = pmalloc_malloc(&heap, 256);
+  if (buffer == NULL) return 1;  // out of memory
 
-  // Make 64k of memory - in embedded systems, we'd actually give a static memory address and size.
-  char buffer[65536];
-  pmalloc_addblock(pm, &buffer, 65536);
+  char *bigger = pmalloc_realloc(&heap, buffer, 512);
+  if (bigger != NULL) buffer = bigger;  // on failure, buffer is still valid
 
-  uint32_t len[6] = { 150, 256, 512, 100, 1024, 65536 };
-  void* mem[6];
-
-  // Allocate some memory - the last allocation should fail
-  for(uint32_t i = 0; i<6; i++) {
-    printf("Allocating %d bytes...\n", len[i]);
-    mem[i] = pmalloc_malloc(pm, len[i]);
-  }
-  if(mem[5] == NULL) printf("Last allocation of %d bytes failed as expected\n", len[5]); 
-
-  // ...use the memory...
-
-  printf("Deallocaing\n");
-  // Deallocate the memory
-  for(uint32_t i = 0; i<5; i++) pmalloc_free(pm, mem[i]);
-  
-  printf("Done\n");
+  pmalloc_free(&heap, buffer);
+  return 0;
 }
 ```
 
-## Examples
+There are full programs in [example](example): [basic](example/example_basic.c) and
+[suballocation](example/example_suballocation.c).
 
-There are a number of further examples in the [example](example) directory.
+### 3. Set the alignment, if you need to
 
-* [Basic Example](example/example_basic.c) 
-* [Suballocation Example](example/example_suballocation.c) 
+Every pointer pmalloc returns is aligned to `PMALLOC_ALIGN` bytes, which defaults to the size of
+a pointer. If you store `double` or `uint64_t` on a 32-bit target, or SIMD types, raise it:
 
-## Structures
-
-### pmalloc_t
-
-```C
-typedef struct pmalloc {
-  pmalloc_ll_item_t *available;
-  pmalloc_ll_item_t *assigned;
-  uint32_t freemem;
-  uint32_t totalmem;
-  uint32_t totalnodes;
-} pmalloc_t;
+```bash
+cc -DPMALLOC_ALIGN=8 -c src/pmalloc.c       # copying the files
+cmake -S . -B build -DPMALLOC_ALIGN=16      # with CMake
 ```
 
-This represents the root of the allocation structure.
+It must be a power of two, at least the size of a pointer.
 
-### pmalloc_item_t
+## Documentation
 
-```C
-typedef struct pmalloc_item {
-  struct pmalloc_item *prev;                  // The previous block in the chain
-  struct pmalloc_item *next;                  // The next block in the chain
-  uint32_t size;                          // This is the size of the block as reported to the user 
-} pmalloc_item_t;
+The [API reference](docs/API.md) covers every function, the memory layout, the configuration and
+the caveats.
+
+## Building and testing
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPMALLOC_WARNINGS_AS_ERRORS=ON
+cmake --build build -j
+./build/pmalloc_tests
 ```
 
-A linked-list item representing an individual memory allocation.
+The tests use [Unity](https://github.com/ThrowTheSwitch/Unity), vendored in `test/vendor/unity`,
+so nothing is downloaded. A `Debug` build also enables `pmalloc_dump_stats`.
 
-## Functions
+| Option | Default | Effect |
+|---|---|---|
+| `PMALLOC_ALIGN` | pointer size | Alignment of every block and returned pointer |
+| `PMALLOC_BUILD_TESTING` | ON when top level | Build `pmalloc_tests` |
+| `PMALLOC_BUILD_EXAMPLES` | ON when top level | Build the examples |
+| `PMALLOC_WARNINGS_AS_ERRORS` | OFF | Treat compiler warnings as errors |
+| `PMALLOC_COVERAGE` | OFF | Instrument for coverage with GCC or Clang |
 
-### pmalloc_init
+To measure coverage locally with GCC and [gcovr](https://gcovr.com):
 
-`void pmalloc_init(pmalloc_t *pm)`
-
-Initialise the specified `pmalloc_t` structure.
-
-### pmalloc_addblock
-
-`void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)`
-
-Add memory at `ptr` of byte size `size` to be available for allocation using `pmalloc_malloc` or `pmalloc_calloc`.
-
-### pmalloc_malloc
-
-`void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)`
-
-Allocate a block of memory of `size` bytes from the available space. Return a pointer to the block, or `NULL` if there isn't enough space.
-
-### pmalloc_calloc
-
-`void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)`
-
-Allocate `num` blocks of memory of `size` bytes from the available space and fill it with `0x00`. Return a pointer to the first block, or `NULL` if there isn't enough space.
-
-### pmalloc_realloc
-
-`void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t size)`
-
-Reallocate the block of previously allocated memory pointed to by `ptr` to a new size and return the new block pointer.
-Note: If the block cannot be reallocated, `pmalloc_realloc` will return NULL without freeing the existing block.
-Note: If the block must be relocated, `pmalloc_realloc` will copy the existing memory in the block and return the new pointer - this may be expensive depending on the length of the block.
-
-### pmalloc_free
-
-`void pmalloc_free(pmalloc_t *pm, void *ptr)`
-
-Free the block of previously allocated memory pointed to by `ptr`.
-
-### pmalloc_sizeof
-
-`uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr)`
-
-Get the size in bytes of the block previously allocated memory pointed to by `ptr`.
-
-### pmalloc_freemem
-
-`uint32_t pmalloc_freemem(pmalloc_t *pm)`
-
-Return the currently available free memory in bytes.
-
-### pmalloc_totalmem
-
-`uint32_t pmalloc_totalmem(pmalloc_t *pm)`
-
-Return the total memory in bytes.
-
-### pmalloc_usedmem
-
-`uint32_t pmalloc_usedmem(pmalloc_t *pm)`
-
-Return the amount of used memory in bytes.
-
-### pmalloc_overheadmem
-
-`uint32_t pmalloc_overheadmem(pmalloc_t *pm)`
-
-Return the current amount of memory consumed in overhead in bytes.
-
-### pmalloc_merge
-
-`void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node)`
-
-Merge available nodes immediately before and after the given node, by scanning backward for consecutive nodes, then scanning forward to merge all consecutive nodes from that address.
-
-### pmalloc_item_insert
-
-`void pmalloc_item_insert(pmalloc_item_t **root, void *ptr)`
-
-*Internal:* Insert the memory block at `ptr` and prefixed by a `pmalloc_item` struct into the specified block item chain.
-
-### pmalloc_item_remove
-
-`void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)`
-
-*Internal:* Remove the memory block at `ptr` and prefixed by a `pmalloc_item` struct from the specified block item chain.
-
-### pmalloc_dump_stats (Debug build only)
-
-`void pmalloc_dump_stats(pmalloc_t *pm)`
-
-Dump the bookkeeping info and available and assigned chains for the given pmalloc_t.
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DPMALLOC_COVERAGE=ON
+cmake --build build -j
+./build/pmalloc_tests
+gcovr --root . --filter src/ --object-directory build
+```
 
 ## Caveats
 
-`pmalloc` focuses on extreme minimalism, and does not include hardening or safety in code. For example, calling `pmalloc_free` with a block that was not previously allocated will lead to undefined behaviour. `pmalloc` is also not thread safe.
+pmalloc is built for minimalism. It does not defend against misuse: freeing a pointer it did not
+allocate, freeing twice or writing past a block corrupts the heap. It is not thread safe. Sizes
+are 32-bit. See [Caveats](docs/API.md#caveats).
 
 ## Contributing
 
-PRs and comments welcome. Please see the [Code Of Conduct](CODE_OF_CONDUCT.md) for community guidelines.
+PRs and comments welcome. Please see the [Code Of Conduct](CODE_OF_CONDUCT.md) for community
+guidelines. Changes are listed in the [changelog](CHANGELOG.md).
 
+## License
+
+MIT. See [LICENSE.txt](LICENSE.txt). The vendored Unity test framework is MIT licensed by its
+authors; see [test/vendor/unity/LICENSE.txt](test/vendor/unity/LICENSE.txt).

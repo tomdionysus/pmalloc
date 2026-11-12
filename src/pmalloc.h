@@ -4,10 +4,26 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define PMALLOC_VERSION_MAJOR 0
+#define PMALLOC_VERSION_MINOR 2
+#define PMALLOC_VERSION_PATCH 0
+#define PMALLOC_VERSION "0.2.0"
+
+// Alignment, in bytes, of every block header and every pointer pmalloc returns. Must be a power
+// of two no smaller than the alignment of a pointer. Override at compile time, for example
+// -DPMALLOC_ALIGN=16, and build pmalloc.c and its callers with the same value.
+#ifndef PMALLOC_ALIGN
+#define PMALLOC_ALIGN sizeof(void *)
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct pmalloc_item {
     struct pmalloc_item *prev;  // The previous block in the chain
     struct pmalloc_item *next;  // The next block in the chain
-    uint32_t size;              // This is the size of the block as reported to the user 
+    uint32_t size;              // This is the size of the block as reported to the user
 } pmalloc_item_t;
 
 typedef struct pmalloc {
@@ -26,7 +42,7 @@ void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t size);         // Reall
 void pmalloc_free(pmalloc_t *pm, void *ptr);                            // Deallocate a block of previously allocated memory
 
 uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr);                      // Return the size of a block of previously allocated memory
-uint32_t pmalloc_freemem(pmalloc_t *pm);                                // Return the amount of free memory 
+uint32_t pmalloc_freemem(pmalloc_t *pm);                                // Return the amount of free memory
 uint32_t pmalloc_totalmem(pmalloc_t *pm);                               // Return the total amount of memory
 uint32_t pmalloc_usedmem(pmalloc_t *pm);                                // Return the amount of used memory
 uint32_t pmalloc_overheadmem(pmalloc_t *pm);                            // Return the current memory overhead
@@ -40,5 +56,8 @@ void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node);  // Remov
 void pmalloc_dump_stats(pmalloc_t *pm);                                 // Debug Function
 #endif
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif

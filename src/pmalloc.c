@@ -4,11 +4,21 @@
 // Author: Tom Cully <mail@tomcully.com>
 // Date: 10th Dec 2022
 //
-// pmalloc can be used to manage memory using a familiar malloc/free pattern in embedded 
+// pmalloc can be used to manage memory using a familiar malloc/free pattern in embedded
 // systems, or to manage sub-allocation within an area of memory given by the OS.
 //
-// To get started, call pmalloc_addblock with the address and size of the memory to be used for 
+// To get started, call pmalloc_addblock with the address and size of the memory to be used for
 // allocation.
+//
+// Layout: every block is a header followed by its payload. The header is a pmalloc_item_t padded
+// to PMALLOC_ALIGN bytes, and every payload occupies its size rounded up to PMALLOC_ALIGN (its
+// span), so every header and every payload is aligned. Free blocks always hold a size that is a
+// multiple of PMALLOC_ALIGN. An assigned block holds the size the caller asked for, or, when the
+// block took a tail too small to become a free block of its own, its whole span.
+//
+// Both chains are kept in address order. No two free blocks are ever adjacent: each one is merged
+// with its neighbours when it is created. Regions added with pmalloc_addblock are kept apart so
+// they are never merged, which keeps totalmem exact.
 //
 
 #include "pmalloc.h"
@@ -16,6 +26,49 @@
 #ifdef DEBUG
 	#include <stdio.h>
 #endif
+
+// PMALLOC_ALIGN must be a power of two that can hold a pointer.
+typedef char pmalloc_align_is_a_power_of_two[((PMALLOC_ALIGN) & ((PMALLOC_ALIGN) - 1)) == 0 ? 1 : -1];
+typedef char pmalloc_align_holds_a_pointer[(PMALLOC_ALIGN) >= sizeof(void *) ? 1 : -1];
+
+#define PM_ALIGN ((uint32_t)(PMALLOC_ALIGN))
+#define PM_MASK (PM_ALIGN - 1u)
+#define PM_HDR ((((uint32_t)sizeof(pmalloc_item_t)) + PM_MASK) & ~PM_MASK)
+
+// The smallest tail worth returning to the free chain: a header and one alignment unit.
+#define PM_MIN_SPLIT (PM_HDR + PM_ALIGN)
+
+static uint32_t pm_span(const pmalloc_item_t *node) { return (node->size + PM_MASK) & ~PM_MASK; }
+static uintptr_t pm_end(const pmalloc_item_t *node) { return (uintptr_t)node + PM_HDR + pm_span(node); }
+static pmalloc_item_t *pm_node(void *ptr) { return (pmalloc_item_t *)((uintptr_t)ptr - PM_HDR); }
+static void *pm_payload(const pmalloc_item_t *node) { return (void *)((uintptr_t)node + PM_HDR); }
+
+// Rounds size up to PMALLOC_ALIGN. Returns 0 if the result would not fit in 32 bits.
+static int pm_round(uint32_t size, uint32_t *rounded)
+{
+	if (size > UINT32_MAX - PM_MASK) return 0;
+	*rounded = (size + PM_MASK) & ~PM_MASK;
+	return 1;
+}
+
+// Cuts an assigned block whose span is `have` bytes down to `want` bytes, returning the tail to the
+// free chain when it is big enough to be a block of its own. Otherwise the block keeps the tail.
+static void pm_trim(pmalloc_t *pm, pmalloc_item_t *node, uint32_t have, uint32_t want, uint32_t size)
+{
+	uint32_t tail = have - want;
+	if (tail < PM_MIN_SPLIT) {
+		node->size = tail == 0 ? size : have;
+		return;
+	}
+
+	pmalloc_item_t *rest = (pmalloc_item_t *)((uintptr_t)node + PM_HDR + want);
+	rest->size = tail - PM_HDR;
+	node->size = size;
+	pmalloc_item_insert(&pm->available, rest);
+	pm->freemem += rest->size;
+	pm->totalnodes++;
+	pmalloc_merge(pm, rest);
+}
 
 void pmalloc_init(pmalloc_t *pm) {
 	#ifdef DEBUG
@@ -31,293 +84,186 @@ void pmalloc_init(pmalloc_t *pm) {
 
 void pmalloc_addblock(pmalloc_t *pm, void *ptr, uint32_t size)
 {
-    // Ensure block alignment
-    uintptr_t ptralignd = ((uintptr_t)ptr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
-    size -= ptralignd - (uintptr_t)ptr;
-    ptr = (void*)ptralignd;
+	if (ptr == NULL) return;
 
-	// Get the usable size of the block
-	((pmalloc_item_t*)ptr)->size = size - sizeof(pmalloc_item_t);
+	// Use only the aligned part of the region
+	uintptr_t start = ((uintptr_t)ptr + PM_MASK) & ~(uintptr_t)PM_MASK;
+	uintptr_t end = ((uintptr_t)ptr + size) & ~(uintptr_t)PM_MASK;
 
-	// Update freemem and totalmem
-	pm->freemem += ((pmalloc_item_t*)ptr)->size;
-	pm->totalmem += pm->freemem;
+	// Keep one alignment unit between this region and any block it touches, so the two are never merged
+	pmalloc_item_t *chains[2] = { pm->available, pm->assigned };
+	for (int i = 0; i < 2; i++) {
+		for (pmalloc_item_t *node = chains[i]; node != NULL; node = node->next) {
+			if (pm_end(node) == start) start += PM_ALIGN;
+			if ((uintptr_t)node == end) end -= PM_ALIGN;
+		}
+	}
 
-	// Add it to the available heap, update totalnodes
-	pmalloc_item_insert(&pm->available, ptr);
+	// Ignore a region too small for a header and one alignment unit
+	if (end <= start + PM_HDR) return;
+
+	pmalloc_item_t *node = (pmalloc_item_t *)start;
+	node->size = (uint32_t)(end - start) - PM_HDR;
+	pm->freemem += node->size;
+	pm->totalmem += node->size;
 	pm->totalnodes++;
+	pmalloc_item_insert(&pm->available, node);
 }
 
 void *pmalloc_malloc(pmalloc_t *pm, uint32_t size)
 {
-    // Ensure pmalloc_item alignment
-    size = (size + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+	uint32_t want;
+	if (!pm_round(size, &want)) return NULL;
 
-	// Find a suitable block
-	pmalloc_item_t *current = pm->available;
-	while(current != NULL && current->size < size) current = current->next;
+	// First fit, in address order
+	pmalloc_item_t *node = pm->available;
+	while (node != NULL && node->size < want) node = node->next;
+	if (node == NULL) return NULL;
 
-	// If there's nothing suitable, we're either out of memory or fragged.
-	if(current == NULL) return NULL;
+	uint32_t have = node->size;
+	pmalloc_item_remove(&pm->available, node);
+	pmalloc_item_insert(&pm->assigned, node);
+	pm->freemem -= have;
+	pm_trim(pm, node, have, want, size);
 
-	// Remove it from pm->available
-	pmalloc_item_remove(&pm->available, current);
-
-	// Add to pm->assigned
-	pmalloc_item_insert(&pm->assigned, current);
-
-	// If it's not the exact size..
-	if(current->size != size) {
-		// Add a free block that's the remainder size
-		pmalloc_item_t *newfree = (pmalloc_item_t*)((char*)current + sizeof(pmalloc_item_t) + size);
-		newfree->size = current->size - sizeof(pmalloc_item_t) - size;
-		newfree->next = current->next;
-		current->next = NULL;
-		
-		// Change pm->assigned size
-		current->size = size;
-		pmalloc_item_insert(&pm->available, newfree);
-
-		// We've lost a bit of overhead making the new node
-		pm->freemem -= sizeof(pmalloc_item_t);
-		pm->totalnodes++;
-
-		// Merge around newfree
-		pmalloc_merge(pm, newfree);
-	}
-
-	// Reduce the amount of free memory
-	pm->freemem -= current->size;
-
-	// Return the user memory
-	return ((char*)current) + sizeof(pmalloc_item_t);
+	return pm_payload(node);
 }
 
 void *pmalloc_calloc(pmalloc_t *pm, uint32_t num, uint32_t size)
 {
-	char *mem = pmalloc_malloc(pm, num * size);
-	if(mem==NULL) return NULL;
-	for(uint32_t i=0; i<num * size; i++) mem[i]=0;
+	if (size != 0 && num > UINT32_MAX / size) return NULL;
+	uint32_t total = num * size;
+
+	unsigned char *mem = (unsigned char *)pmalloc_malloc(pm, total);
+	if (mem == NULL) return NULL;
+	for (uint32_t i = 0; i < total; i++) mem[i] = 0;
 	return mem;
 }
 
-void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t requestedSize)
+void *pmalloc_realloc(pmalloc_t *pm, void *ptr, uint32_t size)
 {
-    // Ensure pmalloc_item alignment
-    requestedSize = (requestedSize + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+	// Match stdlib realloc() NULL interface
+	if (ptr == NULL) return pmalloc_malloc(pm, size);
 
-    // Match stdlib realloc() NULL interface
-    if (ptr == NULL) return pmalloc_malloc(pm, requestedSize);
+	uint32_t want;
+	if (!pm_round(size, &want)) return NULL;
 
-    // Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
-    
-    // If the requested size is equal to the current size, return the original pointer
-    if (node->size == requestedSize) return ptr;
+	pmalloc_item_t *node = pm_node(ptr);
+	uint32_t have = pm_span(node);
 
-    // If the requested size is smaller:
-    if (requestedSize < node->size) {
-     	// If the difference is less than twice sizeof(pmalloc_item_t), it's not worth doing anything, return the original pointer
-     	if(node->size - requestedSize < sizeof(pmalloc_item_t)*2) return ptr;
+	// Shrinking, or growing within the current span: stay in place
+	if (want <= have) {
+		pm_trim(pm, node, have, want, size);
+		return ptr;
+	}
 
-     	// Otherwise, create a free block for the extra space, truncate the block at the new size, and merge around it
-     	pmalloc_item_t *newFree = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + requestedSize);
-     	newFree->size = (node->size - requestedSize) - sizeof(pmalloc_item_t);
-     	pmalloc_item_insert(&pm->available, newFree);
+	// Growing: stay in place if the next block is free and covers the difference
+	uintptr_t end = pm_end(node);
+	pmalloc_item_t *next = pm->available;
+	while (next != NULL && (uintptr_t)next < end) next = next->next;
+	if (next != NULL && (uintptr_t)next == end && have + PM_HDR + next->size >= want) {
+		uint32_t total = have + PM_HDR + next->size;
+		pmalloc_item_remove(&pm->available, next);
+		pm->freemem -= next->size;
+		pm->totalnodes--;
+		pm_trim(pm, node, total, want, size);
+		return ptr;
+	}
 
-     	// Update free memory and node count
-     	pm->freemem += (node->size - requestedSize) - sizeof(pmalloc_item_t);
-     	pm->totalnodes++;
-
-     	// Resize this block
-     	node->size = requestedSize;
-
-     	// Merge around the new free block
-     	pmalloc_merge(pm, newFree);
-
-     	// Return original pointer
-     	return ptr;
-    }
-
-    // // Shortcut if we know there's not enough memory
-    if (requestedSize - node->size > pmalloc_freemem(pm)) return NULL;
-
-    // Expand the block if the requested size is larger than the current size
-    if (requestedSize > node->size) {
-    	// Does the next allocated block have enough space before it for this node to expand?
-    	if(node->next == NULL || (char*)(node->next) > (char*)node + sizeof(pmalloc_item_t) + requestedSize) {
-    		// Get the existing block of free space in between node and the next
-    		pmalloc_item_t *freeBlock = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + node->size);
-    		// Get the free block current size
-    		uint32_t freeBlockSize = freeBlock->size;
-    		// Remove that block from the free chain
-    		pmalloc_item_remove(&pm->available, freeBlock);
-
-    		// Create a new free block with the difference in size, after this node if it was resized
-    		freeBlock = (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + requestedSize);
-    		freeBlock->size = freeBlockSize - (requestedSize - node->size);
-
-    		// Add it to the free list
-    		pmalloc_item_insert(&pm->available, freeBlock);
-
-    		// Update the stats
-    		pm->freemem -= requestedSize - node->size;
-    		// pm->totalnodes stays the same, we removed one and added one
-
-    		// Resize this block
-    		node->size = requestedSize;
-
-    		// Merge around the new free block
-     		pmalloc_merge(pm, freeBlock);
-
-    		// Return original pointer
-    		return ptr;
-    	};
-    }
-
-    // If all else fails, completely reallocate the block, copy its contents, and free the old block.
-
-    // Allocate a new block with the requested size
-    void *newPtr = pmalloc_malloc(pm, requestedSize);
-
-    // Copy the data from the original block to the new block
-    if (newPtr != NULL)
-    {
-        // Copy the data using memcpy
-        for(uint32_t i = 0; i<node->size; i++) *((char*)newPtr + i) = *((char*)ptr + i);
-
-        // Free the original block
-        pmalloc_free(pm, ptr);
-    }
-
-    return newPtr;
+	// Otherwise move: allocate, copy, free. On failure the original block is untouched.
+	unsigned char *moved = (unsigned char *)pmalloc_malloc(pm, size);
+	if (moved == NULL) return NULL;
+	const unsigned char *from = (const unsigned char *)ptr;
+	for (uint32_t i = 0; i < node->size; i++) moved[i] = from[i];
+	pmalloc_free(pm, ptr);
+	return moved;
 }
 
 void pmalloc_free(pmalloc_t *pm, void *ptr)
 {
 	// Match stdlib free() NULL interface
-	if(ptr == NULL) return;
+	if (ptr == NULL) return;
 
-	// Get the node of this memory
-	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
-
-	// Remove it from pm->assigned
+	pmalloc_item_t *node = pm_node(ptr);
 	pmalloc_item_remove(&pm->assigned, node);
-
+	node->size = pm_span(node);
 	pm->freemem += node->size;
-
-	// Add to pm->available
 	pmalloc_item_insert(&pm->available, node);
-
-	// Merge around current
 	pmalloc_merge(pm, node);
 }
 
-void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t* node) {
-	// Scan backward for contiguous blocks
-	while (node->prev != NULL && (char*)node == (char*)node->prev + sizeof(pmalloc_item_t) + node->prev->size)
-		node = node->prev;
+void pmalloc_merge(pmalloc_t *pm, pmalloc_item_t *node)
+{
+	// Scan backward to the first of a run of adjacent free blocks
+	while (node->prev != NULL && pm_end(node->prev) == (uintptr_t)node) node = node->prev;
 
-	// Scan forward and merge free blocks
-	while (node->next == (pmalloc_item_t*)((char*)node + sizeof(pmalloc_item_t) + node->size)) {
-		uint32_t nodesize = node->next->size + sizeof(pmalloc_item_t);
-		pm->freemem += sizeof(pmalloc_item_t);
-		pmalloc_item_remove(&pm->available, node->next);
+	// Fold every adjacent free block after it into it
+	while (node->next != NULL && pm_end(node) == (uintptr_t)node->next) {
+		pmalloc_item_t *next = node->next;
+		pmalloc_item_remove(&pm->available, next);
+		node->size += PM_HDR + next->size;
+		pm->freemem += PM_HDR;
 		pm->totalnodes--;
-		node->size += nodesize;
 	}
 }
 
-uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr) {
-	// Get the actual pmalloc_item_t of the block
-	pmalloc_item_t *node = (pmalloc_item_t*)((uintptr_t)ptr - sizeof(pmalloc_item_t));
-
-	// Return its size
-	return node->size;
+uint32_t pmalloc_sizeof(pmalloc_t *pm, void *ptr)
+{
+	(void)pm;
+	if (ptr == NULL) return 0;
+	return pm_node(ptr)->size;
 }
 
 uint32_t pmalloc_totalmem(pmalloc_t *pm) { return pm->totalmem; }
 uint32_t pmalloc_freemem(pmalloc_t *pm) { return pm->freemem; }
 uint32_t pmalloc_usedmem(pmalloc_t *pm) { return pm->totalmem - pm->freemem; }
-uint32_t pmalloc_overheadmem(pmalloc_t *pm) { return pm->totalnodes * sizeof(pmalloc_item_t); }
+uint32_t pmalloc_overheadmem(pmalloc_t *pm) { return pm->totalnodes * PM_HDR; }
 
 void pmalloc_item_insert(pmalloc_item_t **root, void *ptr)
 {
-	// No existing root
-	if(*root == NULL) {
-		*root = (pmalloc_item_t*)ptr;
-		(*root)->prev = NULL;
-		(*root)->next = NULL;
-		return;
+	pmalloc_item_t *node = (pmalloc_item_t *)ptr;
+	pmalloc_item_t *prev = NULL;
+	pmalloc_item_t *next = *root;
+
+	// Find the place in address order
+	while (next != NULL && (uintptr_t)next < (uintptr_t)node) {
+		prev = next;
+		next = next->next;
 	}
 
-	// Where is the block in relation to the root?
-	if(ptr < (void*)*root) {
-		// New block before root
-		pmalloc_item_t *node = (pmalloc_item_t*)ptr;
-		pmalloc_item_t *oldroot = *root;
-		oldroot->prev = node;
-		node->next = oldroot;
-		*root = node;
-	} else {
-		// New block within or at end of list
-		pmalloc_item_t *current = *root;
-		pmalloc_item_t *node = (pmalloc_item_t*)ptr;
-		
-		// Skip until we find the right place to insert, or the end of the list
-		while(current->next != NULL && node > current->next) current = current->next;
-
-		// We're inserting the block at...
-		if(current->next == NULL) {
-			// The end of list
-			node->prev = current;
-			current->next = node;
-		} else {
-			// Somewhere in the middle
-			pmalloc_item_t *oldnext = current->next;
-
-			current->next = node;
-			node->prev = current;
-			node->next = oldnext;
-			oldnext->prev = node;
-		}
-	} 
+	node->prev = prev;
+	node->next = next;
+	if (prev != NULL) prev->next = node; else *root = node;
+	if (next != NULL) next->prev = node;
 }
 
-void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node) 
+void pmalloc_item_remove(pmalloc_item_t **root, pmalloc_item_t *node)
 {
-	// Remove the node
-	if(node->prev) node->prev->next = node->next;
-	if(node->next) node->next->prev = node->prev;
-	
-	// Fixup root if the node was root
-	if(node==*root) {
-		if (node->prev) 
-			*root = node->prev; 
-		else 
-			*root = node->next; 
-	}
+	if (node->prev != NULL) node->prev->next = node->next; else *root = node->next;
+	if (node->next != NULL) node->next->prev = node->prev;
 
-	// Clear the next and previous pointers
 	node->next = NULL;
 	node->prev = NULL;
 }
 
 #ifdef DEBUG
+static void pm_dump_chain(const pmalloc_item_t *node)
+{
+	for (; node != NULL; node = node->next) {
+		printf("  - (%p) %p -> %p - size: %lu (%lu sys, %lu usr)\n", (const void *)node, pm_payload(node), (void *)pm_end(node),
+		       (unsigned long)(PM_HDR + pm_span(node)), (unsigned long)PM_HDR, (unsigned long)node->size);
+	}
+}
+
 void pmalloc_dump_stats(pmalloc_t *pm) {
 	printf("---------------------\n");
-	printf(" - freemem: %d\n", pm->freemem);
-	printf(" - totalmem: %d\n", pm->totalmem);
-	printf(" - totalnodes: %d (sizeof %d)\n", pm->totalnodes, (int)sizeof(pmalloc_item_t));
+	printf(" - freemem: %lu\n", (unsigned long)pm->freemem);
+	printf(" - totalmem: %lu\n", (unsigned long)pm->totalmem);
+	printf(" - totalnodes: %lu (header %lu, align %lu)\n", (unsigned long)pm->totalnodes, (unsigned long)PM_HDR, (unsigned long)PM_ALIGN);
 	printf(" - assigned:\n");
-	for(pmalloc_item_t* current = pm->assigned; current != NULL; current=current->next) {
-		printf("  - (%016llx) %016llx -> %016llx - size: %lld (%ld sys, %d usr)\n", (unsigned long long)(char*)current, (unsigned long long)(char*)current + sizeof(pmalloc_item_t), (unsigned long long)(char*)current + current->size + sizeof(pmalloc_item_t), (unsigned long long)(current->size + sizeof(pmalloc_item_t)), sizeof(pmalloc_item_t), current->size);
-	} 
+	pm_dump_chain(pm->assigned);
 	printf(" - available:\n");
-	for(pmalloc_item_t* current = pm->available; current != NULL; current=current->next) {
-		printf("  - (%016llx) %016llx -> %016llx - size: %lld (%ld sys, %d usr)\n", (unsigned long long)(char*)current, (unsigned long long)(char*)current + sizeof(pmalloc_item_t), (unsigned long long)(char*)current + current->size + sizeof(pmalloc_item_t), (unsigned long long)(current->size + sizeof(pmalloc_item_t)), sizeof(pmalloc_item_t), current->size);
-	} 
-
+	pm_dump_chain(pm->available);
 	printf("---------------------\n");
 }
 #endif
