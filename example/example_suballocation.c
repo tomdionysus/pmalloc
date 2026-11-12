@@ -4,7 +4,7 @@
 
 #include "pmalloc.h"
 
-int main() {
+int main(void) {
 	printf("pmalloc: Suballocation Example\n\n");
 
 	const uint32_t MEMORY_SIZE = 1024*1024;
@@ -14,7 +14,7 @@ int main() {
 	if(memory == NULL) return 1;
 
 	// Our pmalloc struct
-	pmalloc_t pmm; 
+	pmalloc_t pmm;
 	pmalloc_t *pm = &pmm;
 
 	pmalloc_init(pm);
@@ -22,7 +22,7 @@ int main() {
 
 	printf("Allocating\n");
 
-	char *strs[] = {
+	const char *strs[] = {
 		"One",
 		"Two",
 		"Three",
@@ -38,9 +38,9 @@ int main() {
 	char *ptrs[10];
 
 	for(uint8_t i=0; i<10; i++) {
-		uint8_t len = strlen(strs[i])+1;
-		printf("Allocating %d bytes for '%s', ", len, strs[i]);
-		ptrs[i] = (char*)pmalloc_malloc(pm, len); 
+		uint32_t len = (uint32_t)strlen(strs[i])+1;
+		printf("Allocating %lu bytes for '%s', ", (unsigned long)len, strs[i]);
+		ptrs[i] = (char*)pmalloc_malloc(pm, len);
 		printf("Copying, ");
 		strcpy(ptrs[i], strs[i]);
 		printf("Done.\n");
@@ -49,7 +49,7 @@ int main() {
 	printf("Printing from Allocations\n");
 
 	for(uint8_t i=0; i<10; i++) {
-		printf("'%s' is length %d\n", ptrs[i], pmalloc_sizeof(pm, ptrs[i]));
+		printf("'%s' is length %lu\n", ptrs[i], (unsigned long)pmalloc_sizeof(pm, ptrs[i]));
 	}
 
 	printf("Removing 4 and 5\n");
@@ -61,10 +61,10 @@ int main() {
 
 	printf("Reallocating 'Eleven'\n");
 
-	char *eleven = "Eleven";
-	uint8_t len = strlen(eleven);
-	printf("Allocating %d bytes for '%s', ", len, eleven);
-	ptrs[3] = (char*)pmalloc_malloc(pm, len); 
+	const char *eleven = "Eleven";
+	uint32_t len = (uint32_t)strlen(eleven)+1;
+	printf("Allocating %lu bytes for '%s', ", (unsigned long)len, eleven);
+	ptrs[3] = (char*)pmalloc_malloc(pm, len);
 	printf("Copying, ");
 	strcpy(ptrs[3], eleven);
 	printf("Done.\n");
@@ -73,7 +73,7 @@ int main() {
 
 	for(uint8_t i=0; i<10; i++) {
 		if(ptrs[i]==NULL) continue;
-		printf("'%s' is length %d\n", ptrs[i], pmalloc_sizeof(pm, ptrs[i]));
+		printf("'%s' is length %lu\n", ptrs[i], (unsigned long)pmalloc_sizeof(pm, ptrs[i]));
 	}
 
 	// Note we don't have to pmalloc_free our allocations here - we're just dropping the entire memory back to the OS.
