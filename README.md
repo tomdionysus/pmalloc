@@ -13,7 +13,6 @@ with no heap of their own, or to sub-allocate within a block of memory given by 
 - `malloc`, `calloc`, `realloc` and `free`, with every returned pointer aligned to a configurable
   boundary.
 - Any number of separate memory regions in one heap.
-- 100% line and branch test coverage.
 
 ## Getting started
 
