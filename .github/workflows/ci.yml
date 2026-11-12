@@ -49,6 +49,18 @@ jobs:
       - name: Examples
         run: ./build/pmalloc_example_basic && ./build/pmalloc_example_suballocation
 
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The same clang-format release the sources were formatted with.
+      - name: Check formatting
+        run: >
+          pipx run clang-format==22.1.8 --dry-run --Werror
+          src/*.c src/*.h test/*.c test/*.h example/*.c
+
   embedded:
     name: Cortex-M cross-compile
     runs-on: ubuntu-latest
